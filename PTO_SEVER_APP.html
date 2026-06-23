@@ -107,6 +107,7 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <button class="navbtn" data-tab="tab-gpr">📅 ГПР (график работ)</button>
 <button class="navbtn" data-tab="tab-timesheet">🕐 Табель</button>
 <button class="navbtn" data-tab="tab-workers">👷 Сотрудники</button>
+<button class="navbtn" data-tab="tab-brigades">👥 Бригады</button>
 <button class="navbtn" data-tab="tab-tmc">📦 Учёт ТМЦ</button>
 <button class="navbtn" data-tab="tab-tasks">✅ Планы задач (бригады)</button>
 </div></div>
@@ -132,6 +133,7 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <button class="navbtn" data-tab="tab-vyrabotka">⏱️ Расчёт сроков (выработка)</button>
 <button class="navbtn" data-tab="tab-ppr">📋 Создание ППР (SCAD AI САПР)</button>
 <button class="navbtn" data-tab="tab-designer">🤖 SCAD AI САПР — Проектировщик</button>
+<button class="navbtn" data-tab="tab-projanalysis">🔍 Анализ проекта (ИИ)</button>
 </div></div>
 <div class="navgroup"><button class="navhead">📄 Документы ▾</button><div class="navmenu">
 <button class="navbtn" data-tab="tab-docs">📄 Записки / Заявки</button>
@@ -523,6 +525,17 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 </div>
 <div style="margin-top:12px"><button class="btn" onclick="addTs()">➕ Внести в табель</button></div>
 </div>
+<div class="card" style="background:#f0f9f4;border-color:#bbf7d0">
+<h3 style="margin-top:0">Массовое внесение (отметить нескольких сразу)</h3>
+<div class="banner info">Отметьте чекбоксами нужных сотрудников и внесите им один статус на дату сразу — не по одному.</div>
+<div class="grid">
+<div><label>Дата</label><input type="date" id="tsMassDate"></div>
+<div><label>Статус</label><select id="tsMassStatus"><option>Явка</option><option>Прогул</option><option>Отпуск</option><option>Больничный</option><option>Выходной</option></select></div>
+<div><label>Часы (для явки)</label><input id="tsMassHours" type="number" min="0" max="24" step="0.5" placeholder="по умолчанию"></div>
+</div>
+<div style="margin:8px 0"><button class="btn gray sm" onclick="tsMassAll(true)">выделить всех</button> <button class="btn gray sm" onclick="tsMassAll(false)">снять выделение</button></div>
+<div id="tsMassList" style="display:flex;flex-wrap:wrap;gap:6px;max-height:220px;overflow-y:auto;padding:6px;border:1px solid var(--line);border-radius:8px;background:#fff"></div>
+<div style="margin-top:12px"><button class="btn green" onclick="tsMassAdd()">➕ Внести выбранным</button> <span class="muted" id="tsMassHint"></span></div>
 <div class="card">
 <div class="row noprint" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Табель</h2>
 <div><label class="muted" style="font-size:12px">Фильтр по дате (пусто = показать все):</label> <input type="date" id="tsFilter" style="width:auto;display:inline-block" onchange="renderTs()"> <button class="btn gray sm" onclick="document.getElementById('tsFilter').value='';renderTs()">показать все</button> <button class="btn gray sm" onclick="exportTsPdf()">🖨 PDF за дату</button> <button class="btn green sm" onclick="xlsTsExport()">⬇ Excel</button></div></div>
@@ -533,8 +546,39 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <h3 style="margin:0">Сводка присутствия / отсутствия (табель-сетка)</h3>
 <div><label class="muted" style="font-size:12px">Месяц:</label> <input type="month" id="tsGridMonth" style="width:auto;display:inline-block" onchange="renderTsGrid()"> <button class="btn gray sm" onclick="printTsGrid()">🖨 PDF</button> <button class="btn green sm" onclick="xlsTsGridExport()">⬇ Excel</button></div>
 </div>
-<div class="banner info" style="margin:8px 0">Календарь месяца по всем сотрудникам. <b>Поставьте галочку</b> в клетке дня = присутствие (явка, 8 ч). Снятие галочки убирает отметку. Клик по букве статуса (Н/О/Б/В) меняет его. Я — явка, Н — прогул, О — отпуск, Б — больничный, В — выходной. Данные сохраняются в табель и базу.</div>
+<div class="banner info" style="margin:8px 0">Календарь месяца по всем сотрудникам. <b>Поставьте галочку</b> в клетке дня = присутствие (явка). Снятие галочки убирает отметку. Клик по букве статуса меняет его. Я — явка, Н — прогул, О — отпуск, Б — больничный, В — выходной.</div>
+<div class="row noprint" style="background:#f0f9f4;border-radius:8px;padding:8px;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px">
+<div><label class="muted" style="font-size:12px">Массово на день:</label> <input type="number" id="tsBulkDay" min="1" max="31" placeholder="день" style="width:70px;display:inline-block"></div>
+<div><label class="muted" style="font-size:12px">Статус</label> <select id="tsBulkStatus" style="width:auto;display:inline-block"><option>Явка</option><option>Прогул</option><option>Отпуск</option><option>Больничный</option><option>Выходной</option></select></div>
+<button class="btn green sm" onclick="tsBulkDayFill()">применить всем сотрудникам</button>
+<span class="muted" style="font-size:12px">— отметит выбранный статус всем за этот день</span>
+</div>
 <div id="tsGrid" style="overflow-x:auto"></div>
+</div>
+</section>
+
+<!-- ===== БРИГАДЫ ===== -->
+<section id="tab-brigades" class="tab">
+<div class="card">
+<h2>Бригады</h2>
+<div class="banner info">Сформируйте бригады, перетаскивая сотрудников мышью в нужную бригаду. Для каждой бригады можно задать выработку (общую и по рабочим), рассчитать сроки и получить ИИ-оценку трудоёмкости с опорой на нормы.</div>
+<div class="row">
+<div class="col"><input id="brName" placeholder="Название бригады (напр.: Бригада №1 — монолитчики)"></div>
+<div style="display:flex;align-items:flex-end"><button class="btn" onclick="addBrigade()">➕ Создать бригаду</button></div>
+</div>
+</div>
+<div class="card">
+<div class="row" style="gap:16px;align-items:flex-start;flex-wrap:wrap">
+<div style="flex:1;min-width:230px">
+<h3 style="margin-top:0">Свободные сотрудники</h3>
+<div class="muted" style="font-size:12px;margin-bottom:6px">перетащите в бригаду →</div>
+<div id="brPool" ondragover="event.preventDefault()" ondrop="brDrop(event,'')" style="min-height:120px;border:2px dashed var(--line);border-radius:10px;padding:8px;background:#fafafa"></div>
+</div>
+<div style="flex:2;min-width:300px">
+<h3 style="margin-top:0">Бригады</h3>
+<div id="brigadesList"></div>
+</div>
+</div>
 </div>
 </section>
 
@@ -922,12 +966,28 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <div class="col"><input id="dInput" placeholder="Ваш вопрос…" onkeydown="if(event.key==='Enter')askDesigner()"></div>
 <div style="display:flex;align-items:flex-end"><button class="btn" onclick="askDesigner()">Спросить</button></div>
 </div>
-<div style="margin-top:8px">
-<span class="chip" onclick="qd('Чем отличается РМ-1.3 от других ростверков?')">РМ-1.3 отличия</span>
-<span class="chip" onclick="qd('Гидроизоляция ростверка по проекту?')">Гидроизоляция</span>
-<span class="chip" onclick="qd('Сравни колонны Кбм-1 и Кбм-5')">Кбм-1 vs Кбм-5</span>
-<span class="chip" onclick="qd('Как срубать сваи?')">Распушовка свай</span>
+<div style="margin-top:8px;padding:8px;background:#f5f3ff;border-radius:8px">
+<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600"><input type="checkbox" id="dNormMode" style="width:16px;height:16px"> 📚 Режим нормоконтроля (СНиП/СП/РДС/МДС и др.)</label>
+<div class="muted" style="font-size:12px;margin-top:4px">Приоритет — данные чертежа. Если на чертеже нет ответа, ИИ привлекает строительные нормативы (армирование, бетонирование, разбивка) с указанием документа, пункта и ссылкой на первоисточник. <b>Важно:</b> номера пунктов/страниц от ИИ нужно проверять по официальному тексту (docs.cntd.ru) — модель может ошибаться в нумерации. Рекомендуется модель Claude.</div>
+<div style="margin-top:6px"><label class="muted" style="font-size:12px">Кому адресован вопрос:</label>
+<select id="dRole" style="width:auto;display:inline-block"><option value="ГИП">ГИПу</option><option value="начальник ПТО">Начальнику ПТО</option><option value="проектировщик">Проектировщику</option><option value="нормоконтролёр">Нормоконтролёру</option></select></div>
 </div>
+</div>
+</section>
+
+<!-- ===== АНАЛИЗ ПРОЕКТА (ИИ) ===== -->
+<section id="tab-projanalysis" class="tab">
+<div class="card">
+<h2>Анализ проекта (ИИ) — отчёт об ошибках</h2>
+<div class="banner warn"><b>Честно о возможностях:</b> ИИ анализирует текст загруженных PDF + базу проекта. Он может пропустить ошибки или принять верное за ошибку — это <b>помощник для проверки</b>, а не замена экспертизы. Все замечания проверяет инженер. Глубокий анализ — на модели Claude (настройки ИИ). Геометрию чертежа ИИ не «видит», работает по тексту.</div>
+<div class="row">
+<div class="col"><label>Что анализировать</label><select id="paScope"><option value="all">Весь загруженный проект (все PDF)</option><option value="marks">Только марки/армирование из базы</option></select></div>
+<div style="display:flex;align-items:flex-end"><button class="btn" style="background:#7C3AED" onclick="runProjectAnalysis()" id="paBtn">🔍 Глубокий анализ проекта</button></div>
+</div>
+<div class="progress" id="paProg" style="display:none;margin-top:8px"><div id="paBar"></div></div>
+<div class="muted" id="paStat" style="margin-top:6px"></div>
+<div id="paResult" style="margin-top:10px"></div>
+<div class="noprint" id="paPdfBtn" style="display:none;margin-top:10px"><button class="btn green" onclick="exportProjectAnalysisPdf()">📄 Сохранить отчёт в PDF</button></div>
 </div>
 </section>
 
@@ -1013,8 +1073,23 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 </div>
 <label>Endpoint (адрес прокси)</label><input id="aiEnd" value="/api/chat" placeholder="/api/chat или https://ВАШ-СЕРВИС.onrender.com/api/chat">
 <div class="muted" style="font-size:12px;margin:4px 0">Если сайт и прокси на одном Render-сервисе — оставьте <b>/api/chat</b>. Если прокси отдельно — впишите полный адрес.</div>
-<label>Модель</label><input id="aiModel" value="openai/gpt-4o-mini">
+<label>Модель</label>
+<select id="aiModel" onchange="aiModelPick(this.value)">
+<option value="openai/gpt-4o-mini">openai/gpt-4o-mini — быстрая, дешёвая (по умолчанию)</option>
+<option value="openai/gpt-4o">openai/gpt-4o — сильнее, с vision</option>
+<option value="anthropic/claude-sonnet-4-20250514">anthropic/claude-sonnet-4 — Claude, для глубокого анализа и нормоконтроля</option>
+<option value="__custom">— ввести вручную —</option>
+</select>
+<input id="aiModelCustom" placeholder="vendor/model" style="display:none;margin-top:6px">
+<div class="muted" style="font-size:12px;margin:4px 0">Для глубокого анализа проекта и нормоконтроля рекомендуется Claude. Список моделей — на zveno.ai.</div>
 <div style="margin-top:12px"><button class="btn" onclick="saveAi()">Сохранить настройки ИИ</button></div>
+</div>
+<div class="card">
+<h3>Табель — часы по умолчанию</h3>
+<div class="banner info">Сколько часов проставляется при отметке явки в календаре присутствия (галочкой).</div>
+<label>Часы по умолчанию</label>
+<input id="setDefHours" type="number" min="1" max="24" step="0.5" style="width:120px" value="8">
+<div style="margin-top:10px"><button class="btn" onclick="saveSettings()">Сохранить</button> <span class="muted" id="setHint"></span></div>
 </div>
 </section>
 
@@ -1025,9 +1100,10 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <div class="modal-box wide">
 <button class="close-x" onclick="closeM('pdfModal')">×</button>
 <h3 id="pdfTitle">Чертёж</h3><div class="muted" id="pdfSub"></div>
-<div class="row noprint" style="margin:10px 0"><button class="btn sm gray" onclick="zoom(-0.25)">➖</button><span id="zoomT" style="padding:6px">150%</span><button class="btn sm gray" onclick="zoom(0.25)">➕</button></div>
+<div class="row noprint" style="margin:10px 0"><button class="btn sm gray" onclick="zoom(-0.25)">➖</button><span id="zoomT" style="padding:6px">150%</span><button class="btn sm gray" onclick="zoom(0.25)">➕</button> <button class="btn sm green" id="ocrAreaBtn" onclick="ocrAreaToggle()">🔲 OCR области (быстро)</button> <span class="muted" id="ocrAreaHint" style="font-size:12px"></span></div>
 <div id="pdfStatus" class="muted">Рендеринг…</div>
-<div style="text-align:center"><canvas id="pdfCanvas"></canvas></div>
+<div id="ocrAreaResult" style="margin:6px 0"></div>
+<div style="text-align:center;position:relative"><canvas id="pdfCanvas"></canvas></div>
 </div>
 </div>
 
@@ -1273,7 +1349,7 @@ const WORKTYPES=["Разработка котлована","Водопониже
 let DJ={img:null,regions:[],color:'#1F8A4C',status:'выполнено',work:'Бетонирование (укладка смеси)',drawing:false,sx:0,sy:0,scale:1,zoom:1,src:''};
 let CB={items:[],img:null,regions:[],drawing:false,sx:0,sy:0,scale:1,zoom:1,src:'',color:'#229ED9'};
 let RB={img:null,nodes:[],drawing:false,sx:0,sy:0,scale:1,zoom:1,src:''};
-let S = {ozhr:[],ts:[],workers:[],memos:[],orders:[],regions:[],gpr:[],tmc:[],plans:[],aosr:[],strength:[],checklists:[],instruct:[],permits:[],ocr:[],photos:[],incoming:[],company:{name:'',inn:'',ogrn:'',addr:'',phone:'',email:'',object:'Спорткомплекс «Север», г. Северодвинск. Плавательный бассейн (082.024)'},persons:[],ai:{mode:'api',key:'',end:'/api/chat',model:'openai/gpt-4o-mini'}};
+let S = {ozhr:[],ts:[],workers:[],memos:[],orders:[],regions:[],gpr:[],tmc:[],plans:[],aosr:[],strength:[],checklists:[],instruct:[],permits:[],ocr:[],photos:[],incoming:[],brigades:[],settings:{defaultHours:8},company:{name:'',inn:'',ogrn:'',addr:'',phone:'',email:'',object:'Спорткомплекс «Север», г. Северодвинск. Плавательный бассейн (082.024)'},persons:[],ai:{mode:'api',key:'',end:'/api/chat',model:'openai/gpt-4o-mini'}};
 // ВНИМАНИЕ: ключ ZVENO НЕ хранится в коде. Запросы идут на прокси (end), который сам подставляет ключ из секретов сервера Render.
 // Поле end: '/api/chat' — относительный путь (если сайт и прокси на одном Render-сервисе).
 // Если прокси на отдельном домене — впишите полный адрес в Настройках, напр.: https://ВАШ-СЕРВИС.onrender.com/api/chat
@@ -1296,10 +1372,10 @@ document.addEventListener('DOMContentLoaded',async ()=>{
 function initUI(){
   document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
   const today=new Date().toISOString().split('T')[0];
-  ['oDate','tsDate','mDate','orDate','tmDate','gStart','gEnd','plDate','cbDate','aoDate','aoStart','stDate','inDate','pmDate','pmFrom','pmTo','vyStart','phDate','icDate'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=today;});
+  ['oDate','tsDate','mDate','orDate','tmDate','gStart','gEnd','plDate','cbDate','aoDate','aoStart','stDate','inDate','pmDate','pmFrom','pmTo','vyStart','phDate','icDate','tsMassDate'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=today;});
   if(document.getElementById('dbStatus'))document.getElementById('dbStatus').textContent='База проекта: '+PDB.elements.length+' элементов';
   fillElSelect(); fillWorkerSelect(); renderAll(); loadAiUI();
-  djFillPdfSel(); normCatsRender(); showNorms(NORMS,''); djRenderRegions(); fillWorkSelects(); ozhrFillSelects(); gprFillWork(); renderGpr(); renderGantt(); loadCompanyUI(); setDbStatus(); cbFillEl(); cbFillPdfSel(); cbRenderItems(); cbRenderRegions(); rbFillPdfSel(); rbRenderNodes(); aosrFillOzhr(); instructFillWorker(); renderDashboard(); renderAosr(); renderStrength(); renderChecklists(); renderInstruct(); renderPermits(); vyFill(); plFillPdfSel(); renderTsGrid(); ocrFillPdfSel(); phFillOzhr(); renderPhotos(); renderIncoming();
+  djFillPdfSel(); normCatsRender(); showNorms(NORMS,''); djRenderRegions(); fillWorkSelects(); ozhrFillSelects(); gprFillWork(); renderGpr(); renderGantt(); loadCompanyUI(); setDbStatus(); cbFillEl(); cbFillPdfSel(); cbRenderItems(); cbRenderRegions(); rbFillPdfSel(); rbRenderNodes(); aosrFillOzhr(); instructFillWorker(); renderDashboard(); renderAosr(); renderStrength(); renderChecklists(); renderInstruct(); renderPermits(); vyFill(); plFillPdfSel(); renderTsGrid(); ocrFillPdfSel(); phFillOzhr(); renderPhotos(); renderIncoming(); loadSettingsUI(); renderBrigades(); renderTsMassList();
   const dps=document.getElementById('djPdfSel');if(dps)dps.addEventListener('change',e=>{if(e.target.value){DJ.img=null;djLoadPdfPage(e.target.value);}});
   const cps=document.getElementById('cbPdfSel');if(cps)cps.addEventListener('change',e=>{if(e.target.value){CB.img=null;cbLoadPdfPage(e.target.value);}});
   const rps=document.getElementById('rbPdfSel');if(rps)rps.addEventListener('change',e=>{if(e.target.value){RB.img=null;rbLoadPdfPage(e.target.value);}});
@@ -1310,8 +1386,9 @@ function switchTab(id){
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   document.querySelector('.navbtn[data-tab="'+id+'"]').classList.add('active');
+  if(id==='tab-brigades')renderBrigades();
   if(id==='tab-dashboard')renderDashboard();
-  if(id==='tab-timesheet')renderTsGrid();
+  if(id==='tab-timesheet'){renderTsGrid();renderTsMassList();}
   if(id==='tab-photos'){phFillOzhr();renderPhotos();}
   if(id==='tab-aosr')aosrFillOzhr();
   if(id==='tab-instruct')instructFillWorker();
@@ -1335,6 +1412,9 @@ async function serverRefresh(){
   if(btn){btn.textContent='🔄 Обновить';btn.disabled=false;}
   if(ok)alert('Данные обновлены с сервера.');
 }
+function saveSettings(){const h=parseFloat(document.getElementById('setDefHours').value)||8;S.settings=S.settings||{};S.settings.defaultHours=Math.max(1,Math.min(24,h));persist();document.getElementById('setHint').textContent='✓ сохранено ('+S.settings.defaultHours+' ч)';if(typeof renderTsGrid==='function')renderTsGrid();}
+function loadSettingsUI(){const e=document.getElementById('setDefHours');if(e&&S.settings)e.value=S.settings.defaultHours||8;}
+function defHours(){return (S.settings&&S.settings.defaultHours)||8;}
 // ===== ОБЩАЯ БАЗА НА СЕРВЕРЕ =====
 let SERVER_DB=false;          // включается, если приложение открыто на сервере с /api/data
 let _srvSaveTimer=null, _srvSaving=false, _srvPending=false;
@@ -1685,6 +1765,34 @@ function renderOzhr(){
 function delOzhr(id){if(!confirm('Удалить запись?'))return;S.ozhr=S.ozhr.filter(o=>o.id!==id);persist();renderOzhr();}
 
 /* ====== ТАБЕЛЬ ====== */
+function renderTsMassList(){
+  const el=document.getElementById('tsMassList');if(!el)return;
+  if(!S.workers.length){el.innerHTML='<span class="muted" style="font-size:12px">Нет сотрудников. Добавьте во вкладке «Сотрудники».</span>';return;}
+  el.innerHTML=S.workers.map(w=>'<label style="display:inline-flex;align-items:center;gap:5px;background:#f1f5f9;border-radius:14px;padding:5px 10px;cursor:pointer;font-size:13px"><input type="checkbox" class="tsMassChk" value="'+w.id+'" style="width:15px;height:15px">'+esc(w.name)+'</label>').join('');
+}
+function tsMassAll(on){document.querySelectorAll('.tsMassChk').forEach(c=>c.checked=on);}
+function tsMassAdd(){
+  const ids=[...document.querySelectorAll('.tsMassChk:checked')].map(c=>+c.value);
+  if(!ids.length){alert('Отметьте хотя бы одного сотрудника галочкой');return;}
+  const date=document.getElementById('tsMassDate').value||new Date().toISOString().split('T')[0];
+  const st=document.getElementById('tsMassStatus').value;
+  const hInput=document.getElementById('tsMassHours').value;
+  const hrs=st==='Явка'?(parseFloat(hInput)||defHours()):0;
+  let added=0;
+  ids.forEach(wId=>{
+    const w=S.workers.find(x=>x.id==wId);if(!w)return;
+    const ex=tsFindEntry(wId,new Date(date).getDate(),date.slice(0,7));
+    const pay=st==='Явка'?Math.round(hrs*(w.rate||0)):0;
+    if(ex){ex.status=st;ex.hrs=hrs.toFixed(1);ex.pay=pay;}
+    else S.ts.unshift({id:Date.now()+Math.random(),date,wId:w.id,wName:w.name,status:st,in:st==='Явка'?'08:00':'',out:st==='Явка'?'17:00':'',hrs:hrs.toFixed(1),ktu:1,adv:0,pay,note:'массовое внесение'});
+    added++;
+  });
+  // фильтр табеля — на эту дату, чтобы записи были видны
+  const fEl=document.getElementById('tsFilter');if(fEl&&fEl.value&&fEl.value!==date)fEl.value=date;
+  persist();renderTs();renderTsGrid();
+  tsMassAll(false);
+  document.getElementById('tsMassHint').textContent='✓ внесено: '+added+' ('+st+', '+date.split('-').reverse().join('.')+')';
+}
 function addTs(){
   const wId=document.getElementById('tsWorker').value;if(!wId){alert('Добавьте сотрудника');return;}
   const w=S.workers.find(x=>x.id==wId);
@@ -1746,7 +1854,7 @@ function renderTsGrid(){
         bg=fill['Я'];
         cell='<div style="display:flex;align-items:center;justify-content:center;gap:1px" title="'+dtitle+'">'+
           '<input type="checkbox" checked onchange="tsToggle('+w.id+','+d+',\''+yy+'-'+mm+'\',this.checked)" title="снять явку ('+d+'.'+mm+')" style="cursor:pointer;width:13px;height:13px;flex:none;margin:0">'+
-          '<input type="number" min="0" max="24" step="0.5" value="'+(parseFloat(c.hrs)||8)+'" onchange="tsSetHours('+w.id+','+d+',\''+yy+'-'+mm+'\',this.value)" oncontextmenu="event.preventDefault();tsCellMenu('+w.id+','+d+',\''+yy+'-'+mm+'\')" title="часы ('+d+'.'+mm+'). ПКМ — статус" style="width:26px;text-align:center;border:none;background:transparent;font-weight:700;color:#166534;cursor:pointer;padding:0">'+
+          '<input type="number" min="0" max="24" step="0.5" value="'+(parseFloat(c.hrs)||defHours())+'" onchange="tsSetHours('+w.id+','+d+',\''+yy+'-'+mm+'\',this.value)" oncontextmenu="event.preventDefault();tsCellMenu('+w.id+','+d+',\''+yy+'-'+mm+'\')" title="часы ('+d+'.'+mm+'). ПКМ — статус" style="width:26px;text-align:center;border:none;background:transparent;font-weight:700;color:#166534;cursor:pointer;padding:0">'+
           '</div>';
       } else if(c){
         const col={'Н':'#C00000','О':'#2563eb','Б':'#C55A11','В':'#64748b'}[c.code];bg=fill[c.code]||bg;
@@ -1773,13 +1881,31 @@ function tsSetHours(wId,day,ym,val){
   }
   persist();renderTs();renderTsGrid();
 }
+function tsBulkDayFill(){
+  const ym=document.getElementById('tsGridMonth').value||new Date().toISOString().slice(0,7);
+  const day=parseInt(document.getElementById('tsBulkDay').value);
+  const st=document.getElementById('tsBulkStatus').value;
+  const [y,m]=ym.split('-').map(Number);
+  const maxDay=new Date(y,m,0).getDate();
+  if(!day||day<1||day>maxDay){alert('Укажите день от 1 до '+maxDay);return;}
+  if(!S.workers.length){alert('Нет сотрудников');return;}
+  if(!confirm('Отметить «'+st+'» всем '+S.workers.length+' сотрудникам за '+day+'.'+String(m).padStart(2,'0')+'?'))return;
+  const date=ym+'-'+String(day).padStart(2,'0');
+  S.workers.forEach(w=>{
+    const ex=tsFindEntry(w.id,day,ym);
+    const hrs=st==='Явка'?defHours():0;const pay=st==='Явка'?Math.round(hrs*(w.rate||0)):0;
+    if(ex){ex.status=st;ex.hrs=hrs.toFixed(1);ex.pay=pay;}
+    else S.ts.unshift({id:Date.now()+Math.random(),date,wId:w.id,wName:w.name,status:st,in:st==='Явка'?'08:00':'',out:st==='Явка'?'17:00':'',hrs:hrs.toFixed(1),ktu:1,adv:0,pay,note:'массово за день'});
+  });
+  persist();renderTs();renderTsGrid();
+}
 function tsToggle(wId,day,ym,checked){
   const w=S.workers.find(x=>x.id==wId);if(!w)return;
   const date=ym+'-'+String(day).padStart(2,'0');
   const ex=tsFindEntry(wId,day,ym);
   if(checked){
-    if(ex){ex.status='Явка';if(!ex.hrs||ex.hrs==='0.0'){ex.hrs='8.0';ex.in='08:00';ex.out='17:00';}ex.pay=Math.round(8*(w.rate||0)*(ex.ktu||1));}
-    else S.ts.unshift({id:Date.now(),date,wId:w.id,wName:w.name,status:'Явка',in:'08:00',out:'17:00',hrs:'8.0',ktu:1,adv:0,pay:Math.round(8*(w.rate||0)),note:'отмечено в календаре'});
+    if(ex){ex.status='Явка';if(!ex.hrs||ex.hrs==='0.0'){ex.hrs=defHours().toFixed(1);ex.in='08:00';ex.out='17:00';}ex.pay=Math.round(defHours()*(w.rate||0)*(ex.ktu||1));}
+    else S.ts.unshift({id:Date.now(),date,wId:w.id,wName:w.name,status:'Явка',in:'08:00',out:'17:00',hrs:defHours().toFixed(1),ktu:1,adv:0,pay:Math.round(defHours()*(w.rate||0)),note:'отмечено в календаре'});
   } else {
     if(ex)S.ts=S.ts.filter(r=>r!==ex); // снятие галочки удаляет отметку явки за день
   }
@@ -1795,7 +1921,7 @@ function tsCellMenu(wId,day,ym){
   const date=ym+'-'+String(day).padStart(2,'0');const ex=tsFindEntry(wId,day,ym);
   if(st==='del'){if(ex)S.ts=S.ts.filter(r=>r!==ex);}
   else{
-    const hrs=st==='Явка'?'8.0':'0.0';const pay=st==='Явка'?Math.round(8*(w.rate||0)):0;
+    const hrs=st==='Явка'?defHours().toFixed(1):'0.0';const pay=st==='Явка'?Math.round(defHours()*(w.rate||0)):0;
     if(ex){ex.status=st;ex.hrs=hrs;ex.pay=pay;}
     else S.ts.unshift({id:Date.now(),date,wId:w.id,wName:w.name,status:st,in:st==='Явка'?'08:00':'',out:st==='Явка'?'17:00':'',hrs,ktu:1,adv:0,pay,note:'отмечено в календаре'});
   }
@@ -1857,7 +1983,7 @@ function renderWorkers(){
   el.innerHTML=h+'</table>';
 }
 function delWorker(id){if(!confirm('Удалить сотрудника?'))return;S.workers=S.workers.filter(w=>w.id!==id);persist();renderWorkers();fillWorkerSelect();instructFillWorker();}
-function fillWorkerSelect(){const s=document.getElementById('tsWorker');if(!s)return;s.innerHTML=S.workers.map(w=>'<option value="'+w.id+'">'+esc(w.name)+' ('+esc(w.post)+')</option>').join('')||'<option value="">— нет сотрудников —</option>';}
+function fillWorkerSelect(){const s=document.getElementById('tsWorker');if(!s)return;s.innerHTML=S.workers.map(w=>'<option value="'+w.id+'">'+esc(w.name)+' ('+esc(w.post)+')</option>').join('')||'<option value="">— нет сотрудников —</option>';if(typeof renderTsMassList==='function')renderTsMassList();}
 
 /* ====== ПОИСК / АНАЛИЗ ====== */
 function allElements(){return PDB.elements.concat(EXTRACTED);}
@@ -1874,20 +2000,15 @@ function runSearch(){
   const raw=document.getElementById('sQuery').value.trim();
   if(!raw)return;
   const norm=s=>(s||'').toLowerCase().replace(/ё/g,'е').replace(/\s*-\s*/g,'-').replace(/\s+/g,' ');
-  const q=norm(raw);
-  // слова запроса (для частичного совпадения по нескольким словам)
+  const glue=s=>(s||'').toLowerCase().replace(/ё/g,'е').replace(/[\s\-—.]/g,''); // склеенный, без пробелов/дефисов/точек
+  const q=norm(raw);const qg=glue(raw);
   const words=q.split(' ').filter(w=>w.length>=2);
-  // поиск по базе: совпадение всей фразы ИЛИ всех слов
-  let r=allElements().filter(e=>{
-    const hay=norm(e.mark+' '+e.type+' '+e.spec+' '+e.cat);
-    return hay.includes(q)||words.every(w=>hay.includes(w));
-  });
-  // сквозной поиск по ВСЕМ загруженным PDF (по всей фразе или по словам)
+  const match=hay=>{const h=norm(hay);if(h.includes(q)||words.every(w=>h.includes(w)))return true;return glue(hay).includes(qg);};
+  // поиск по базе
+  let r=allElements().filter(e=>match(e.mark+' '+e.type+' '+e.spec+' '+e.cat));
+  // сквозной поиск по ВСЕМ загруженным PDF (фраза / слова / склеенный текст)
   let pdfHits=[];
-  PDFS.forEach(p=>p.pages.forEach(pg=>{
-    const hay=norm(pg.text);
-    if(hay.includes(q)||words.every(w=>hay.includes(w)))pdfHits.push({pdf:p.name,n:pg.n,text:pg.text});
-  }));
+  PDFS.forEach(p=>p.pages.forEach(pg=>{ if(match(pg.text))pdfHits.push({pdf:p.name,n:pg.n,text:pg.text}); }));
   showResults(r,'Поиск: «'+raw+'»',pdfHits);
 }
 function axisSearch(){
@@ -1903,17 +2024,34 @@ function axisSearch(){
   document.getElementById('sStats').textContent='Совпадений: '+r.length+(pdfHits.length?(' + '+pdfHits.length+' в PDF'):'')+'. Привязка осей — по плану ростверков КР л.3 / плану колонн КЖ0 л.34';
 }
 function showResults(arr,title,pdfHits){
-  const el=document.getElementById('sResults');document.getElementById('sStats').textContent=(arr.length||0)+' совпадений в базе'+(pdfHits&&pdfHits.length?(' + '+pdfHits.length+' в PDF'):'');
+  const el=document.getElementById('sResults');document.getElementById('sStats').textContent=(arr.length||0)+' совпадений в базе'+(pdfHits&&pdfHits.length?(' + '+pdfHits.length+' листов в PDF'):'');
   let h='';
-  if(!arr.length&&(!pdfHits||!pdfHits.length)){el.innerHTML='<p class="muted">Ничего не найдено. Попробуйте: РМ-1.3, Кбм-5, В25, ∅16, свая, гидроизоляция.</p>';return;}
+  if(!arr.length&&(!pdfHits||!pdfHits.length)){el.innerHTML='<p class="muted">Ничего не найдено. Если чертёж «картиночный» — распознайте его через OCR (кнопка «Распознать ВСЕ документы»). Попробуйте также: РМ-1.3, Кбм-5, В25, ∅16, свая, гидроизоляция.</p>';return;}
   arr.forEach(e=>{const badge=e.src==='PDF'?' <span class="tag" style="background:#fef3c7;color:#92400e">из PDF</span>':' <span class="tag" style="background:#dcfce7;color:#166534">база</span>';
     const ref=sheetToPdf(e.sheet);
     const clickAttr=' onclick="openElementDrawing('+JSON.stringify(e.sheet).replace(/"/g,'&quot;')+')" style="cursor:pointer"';
     const openHint=ref?'<div style="margin-top:4px;font-size:11px;color:#229ED9">🔍 открыть лист '+ref.n+' в «'+esc(ref.name)+'»</div>':'<div style="margin-top:4px;font-size:11px;color:#888">🔍 нажмите, чтобы открыть (нужен загруженный PDF этого тома)</div>';
     h+='<div class="result"'+clickAttr+'><div class="mk">'+e.mark+' <span class="tag">'+e.type+'</span>'+badge+'</div><div style="margin:5px 0">'+hlq(e.spec)+'</div><div class="sh">📄 '+e.sheet+'</div>'+openHint+'</div>';});
-  if(pdfHits&&pdfHits.length){h+='<h3>Найдено в загруженных PDF</h3>';pdfHits.slice(0,20).forEach(p=>{const idx=p.text.toLowerCase().indexOf(document.getElementById('sQuery').value.trim().toLowerCase());const ctx=idx>=0?p.text.substring(Math.max(0,idx-50),idx+120):p.text.substring(0,150);h+='<div class="result" onclick="viewPdf(\''+p.pdf.replace(/'/g,"")+'\','+p.n+')"><div class="mk">'+esc(p.pdf)+' — лист '+p.n+'</div><div class="muted" style="margin-top:4px">…'+esc(ctx)+'…</div></div>';});}
+  if(pdfHits&&pdfHits.length){
+    const q=document.getElementById('sQuery').value.trim().toLowerCase();
+    // сортируем: сначала «содержательные» листы, потом содержание/ведомости (где упоминание, а не сам чертёж)
+    const isIndex=t=>/содержание|ведомость|состав|общие данные|перечень|спецификаци/i.test(t.slice(0,400));
+    const hits=pdfHits.map(p=>({...p,idx:isIndex(p.text)}));
+    hits.sort((a,b)=>a.idx-b.idx); // не-содержание сначала
+    h+='<h3>Найдено в загруженных PDF ('+hits.length+' лист.) — нажмите для перехода на лист</h3>';
+    hits.forEach(p=>{
+      const low=p.text.toLowerCase();const pos=low.indexOf(q);
+      const ctx=pos>=0?p.text.substring(Math.max(0,pos-60),pos+140):p.text.substring(0,160);
+      const tag=p.idx?' <span class="tag" style="background:#fde8e8;color:#991b1b">содержание/ведомость — указатель</span>':' <span class="tag" style="background:#dcfce7;color:#166534">лист чертежа</span>';
+      h+='<div class="result" style="cursor:pointer;border-left:4px solid '+(p.idx?'#f59e0b':'#229ED9')+'" onclick="viewPdf(\''+p.pdf.replace(/'/g,"")+'\','+p.n+')">'+
+        '<div class="mk">📄 '+esc(p.pdf)+' — лист '+p.n+tag+'</div>'+
+        '<div class="muted" style="margin:4px 0">…'+hlq2(esc(ctx),q)+'…</div>'+
+        '<div style="font-size:12px;color:#229ED9;font-weight:600">→ Открыть лист '+p.n+'</div></div>';
+    });
+  }
   el.innerHTML=h;
 }
+function hlq2(text,q){if(!q)return text;try{const re=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig');return text.replace(re,'<mark>$1</mark>');}catch(e){return text;}}
 function hlq(s){return esc(s).replace(/(\d+[\.,]?\d*\s*(?:м³|шт|кг|т|мм|п\.м|м²))/g,'<span class="qty">$1</span>');}
 // Сопоставление ссылки базы (напр. "КЖ0 л.17") с загруженным PDF и номером листа
 function sheetToPdf(sheet){
@@ -1948,6 +2086,86 @@ function ocrShowSaved(){
 }
 function ocrClear(){if(!confirm('Удалить весь сохранённый OCR-текст из базы? (распознавание нужно будет повторить)'))return;S.ocr=[];persist();ocrShowSaved();alert('Кэш OCR очищен.');}
 let OCRALL={running:false,stop:false};
+// предобработка для OCR: ч/б + повышение контраста (порог) — Tesseract читает чёткий чёрный текст лучше
+function ocrPreprocess(cv){
+  try{
+    const ctx=cv.getContext('2d');const im=ctx.getImageData(0,0,cv.width,cv.height);const d=im.data;
+    for(let i=0;i<d.length;i+=4){
+      const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+      const v=g<150?0:255; // порог: тёмное→чёрный, светлое→белый
+      d[i]=d[i+1]=d[i+2]=v;
+    }
+    ctx.putImageData(im,0,0);
+  }catch(e){}
+  return cv;
+}
+// нормализация OCR-текста: частые подмены символов, чтобы поиск находил больше
+function ocrNormalize(t){
+  if(!t)return t;
+  return t
+    .replace(/[''`]/g,"'")
+    .replace(/[«»""]/g,'"')
+    .replace(/\u2014|\u2013/g,'-')
+    // латиница, которую OCR путает с кириллицей в марках (контекстно безопасные пары)
+    .replace(/\bA(?=\d)/g,'А').replace(/\bB(?=\d)/g,'В')
+    .replace(/\s{2,}/g,' ');
+}
+let _ocrWorker=null;
+async function getOcrWorker(){
+  // единый воркер на весь пакет — экономит инициализацию (несколько сек на лист)
+  if(_ocrWorker)return _ocrWorker;
+  if(Tesseract.createWorker){
+    try{ _ocrWorker=await Tesseract.createWorker('rus+eng'); return _ocrWorker; }catch(e){ _ocrWorker=null; }
+  }
+  return null; // фолбэк на Tesseract.recognize
+}
+async function ocrRecognize(canvas){
+  const w=await getOcrWorker();
+  if(w){const{data}=await w.recognize(canvas);return data;}
+  const{data}=await Tesseract.recognize(canvas,'rus+eng');return data;
+}
+// ===== OCR ПО ОБЛАСТИ (рамкой на открытом листе) =====
+let OCRAREA={on:false,sx:0,sy:0,box:null};
+function ocrAreaToggle(){
+  const cv=document.getElementById('pdfCanvas');const hint=document.getElementById('ocrAreaHint');const btn=document.getElementById('ocrAreaBtn');
+  OCRAREA.on=!OCRAREA.on;
+  if(OCRAREA.on){btn.textContent='✖ отменить выделение';hint.textContent='обведите область с текстом мышью';cv.style.cursor='crosshair';
+    cv.onmousedown=ocrAreaDown;cv.onmousemove=ocrAreaMove;cv.onmouseup=ocrAreaUp;
+  }else{btn.textContent='🔲 OCR области (быстро)';hint.textContent='';cv.style.cursor='default';cv.onmousedown=cv.onmousemove=cv.onmouseup=null;if(OCRAREA.box){OCRAREA.box.remove();OCRAREA.box=null;}}
+}
+function ocrAreaDown(e){
+  const cv=document.getElementById('pdfCanvas');const r=cv.getBoundingClientRect();
+  OCRAREA.sx=e.clientX-r.left;OCRAREA.sy=e.clientY-r.top;OCRAREA.drawing=true;
+  if(!OCRAREA.box){OCRAREA.box=document.createElement('div');OCRAREA.box.style.cssText='position:absolute;border:2px dashed #229ED9;background:rgba(34,158,217,.12);pointer-events:none;z-index:5';cv.parentElement.appendChild(OCRAREA.box);}
+  OCRAREA.box.style.left=(cv.offsetLeft+OCRAREA.sx)+'px';OCRAREA.box.style.top=(cv.offsetTop+OCRAREA.sy)+'px';OCRAREA.box.style.width='0px';OCRAREA.box.style.height='0px';
+}
+function ocrAreaMove(e){
+  if(!OCRAREA.drawing)return;const cv=document.getElementById('pdfCanvas');const r=cv.getBoundingClientRect();
+  const x=e.clientX-r.left,y=e.clientY-r.top;
+  const l=Math.min(x,OCRAREA.sx),t=Math.min(y,OCRAREA.sy),w=Math.abs(x-OCRAREA.sx),h=Math.abs(y-OCRAREA.sy);
+  OCRAREA.box.style.left=(cv.offsetLeft+l)+'px';OCRAREA.box.style.top=(cv.offsetTop+t)+'px';OCRAREA.box.style.width=w+'px';OCRAREA.box.style.height=h+'px';
+  OCRAREA._rect={l,t,w,h};
+}
+async function ocrAreaUp(e){
+  OCRAREA.drawing=false;const rect=OCRAREA._rect;if(!rect||rect.w<10||rect.h<10)return;
+  if(typeof Tesseract==='undefined'){alert('OCR-библиотека не загружена.');return;}
+  const cv=document.getElementById('pdfCanvas');const res=document.getElementById('ocrAreaResult');
+  // коэффициент: канвас отрисован с зумом, берём пиксели канваса напрямую
+  const scaleX=cv.width/cv.clientWidth,scaleY=cv.height/cv.clientHeight;
+  const sx=rect.l*scaleX,sy=rect.t*scaleY,sw=rect.w*scaleX,sh=rect.h*scaleY;
+  const crop=document.createElement('canvas');crop.width=sw;crop.height=sh;
+  crop.getContext('2d').drawImage(cv,sx,sy,sw,sh,0,0,sw,sh);
+  ocrPreprocess(crop);
+  res.innerHTML='<span class="muted">⏳ распознаю область…</span>';
+  try{
+    const data=await ocrRecognize(crop);
+    const text=ocrNormalize((data.text||'').trim());
+    // добавим в индекс текущего листа, чтобы поиск находил
+    const doc=PDFS.find(p=>p.name===curPdfName);
+    if(doc){const pg=doc.pages.find(x=>x.n===curPage);if(pg){pg.text=(pg.text||'')+'\n[OCR-обл]\n'+text;pg.ocr=true;const okey=doc.name+'|'+curPage;const ex=S.ocr.find(o=>o.key===okey);if(ex)ex.text=(ex.text||'')+'\n'+text;else S.ocr.push({key:okey,pdf:doc.name,n:curPage,text,date:Date.now()});persist();}}
+    res.innerHTML='<div class="banner ok" style="margin:0"><b>Распознано в области:</b><div style="white-space:pre-wrap;font-size:13px;margin-top:4px">'+(esc(text)||'<i>текст не распознан — попробуйте крупнее или чётче</i>')+'</div><div class="muted" style="font-size:11px;margin-top:4px">Добавлено в поиск по этому листу.</div></div>';
+  }catch(e){res.innerHTML='<span class="muted">Ошибка OCR области: '+esc(e.message)+'</span>';}
+}
 async function runOcrAll(){
   if(OCRALL.running)return;
   if(!PDFS.length){alert('Сначала загрузите PDF чертежей.');return;}
@@ -1973,11 +2191,12 @@ async function runOcrAll(){
     stat.textContent='OCR '+(k+1)+'/'+tasks.length+': '+doc.name+' — лист '+n;
     try{
       const pdf=await pdfjsLib.getDocument({data:doc.buffer.slice(0)}).promise;
-      const page=await pdf.getPage(n);const vp=page.getViewport({scale:3});
+      const page=await pdf.getPage(n);const vp=page.getViewport({scale:2});
       const cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;
       await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
-      const {data}=await Tesseract.recognize(cv,'rus+eng');
-      const text=(data.text||'').replace(/\s+\n/g,'\n').trim();
+      ocrPreprocess(cv); // ч/б + контраст — быстрее и точнее
+      const data=await ocrRecognize(cv); // единый воркер на весь пакет
+      const text=ocrNormalize((data.text||'').replace(/\s+\n/g,'\n').trim());
       const pg=doc.pages.find(x=>x.n===n);
       if(pg){pg.text=(pg.text||'')+'\n[OCR]\n'+text;pg.ocr=true;}
       // сохраняем в базу
@@ -1996,6 +2215,7 @@ async function runOcrAll(){
   result.innerHTML='<div class="banner ok">Пакетный OCR завершён. Распознанные листы теперь участвуют в поиске по чертежам. Результаты сохранены в базу — при повторной загрузке тех же PDF восстановятся.</div>';
   fillElSelect();ocrFillPdfSel();ocrShowSaved();
   OCRALL.running=false;allBtn.disabled=false;document.getElementById('ocrBtn').disabled=false;stopBox.style.display='none';
+  if(_ocrWorker){try{await _ocrWorker.terminate();}catch(e){}_ocrWorker=null;}
   setTimeout(()=>{prog.style.display='none';},800);
 }
 async function runOcr(){
@@ -2013,10 +2233,11 @@ async function runOcr(){
     const vp=page.getViewport({scale:3});
     const cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;
     await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+    ocrPreprocess(cv); // ч/б + контраст
     bar.style.width='15%';stat.textContent='Распознаю текст (рус+англ). Это может занять 10–40 секунд…';
     const {data}=await Tesseract.recognize(cv,'rus+eng',{logger:m=>{if(m.status==='recognizing text'){bar.style.width=(15+Math.round(m.progress*80))+'%';stat.textContent='Распознавание: '+Math.round(m.progress*100)+'%';}}});
     bar.style.width='100%';
-    const text=(data.text||'').replace(/\s+\n/g,'\n').trim();
+    const text=ocrNormalize((data.text||'').replace(/\s+\n/g,'\n').trim());
     // сохраняем распознанный текст в страницу PDF (чтобы поиск его находил)
     const pg=doc.pages.find(x=>x.n===n);
     if(pg){pg.text=(pg.text||'')+'\n[OCR]\n'+text;pg.ocr=true;}
@@ -2175,16 +2396,33 @@ function dMsg(who,txt){const c=document.getElementById('dChat');const d=document
 async function askDesigner(){
   const q=document.getElementById('dInput').value.trim();if(!q)return;
   dMsg('u',esc(q));document.getElementById('dInput').value='';
+  const normMode=document.getElementById('dNormMode')&&document.getElementById('dNormMode').checked;
+  const role=(document.getElementById('dRole')&&document.getElementById('dRole').value)||'ГИП';
   if(aiReady()){
     dMsg('b','⏳ ZVENO AI анализирует проект…');
     try{
       const ctx=PDB.elements.map(e=>e.mark+': '+e.spec+' ['+e.sheet+']').join('\n');
-      const prompt='Ты ГИП/технадзор по объекту «Север» (082.024). Отвечай ТОЛЬКО по данным проекта ниже, ссылайся на листы, не выдумывай. Если данных нет — скажи об этом.\nПРОЕКТ:\n'+ctx+'\nВОПРОС: '+q;
+      // текст загруженных PDF (первые ~6000 символов на лист, ограничим суммарно)
+      let pdfCtx='';PDFS.forEach(p=>p.pages.forEach(pg=>{if(pg.text&&pg.text.trim().length>30&&pdfCtx.length<14000)pdfCtx+='\n['+p.name+' л.'+pg.n+']: '+pg.text.slice(0,1500);}));
+      let prompt;
+      if(normMode){
+        prompt='Ты опытный '+role+' по объекту «Север» (082.024, монолитный ж/б, бассейн, Северодвинск). Отвечай профессионально, как '+role+'.\n'+
+          'ПРАВИЛА:\n'+
+          '1) ПРИОРИТЕТ — данные чертежа/проекта ниже. Сначала ищи ответ в них и ссылайся на конкретный лист.\n'+
+          '2) Если на чертеже НЕТ данных или упоминаний по вопросу — тогда привлекай строительные нормативы РФ (СП, СНиП, ГОСТ, РДС, МДС и др.), включая положения по армированию, бетонированию, разбивочным работам.\n'+
+          '3) Указывай конкретный документ, номер пункта/таблицы и, по возможности, ссылку на первоисточник (docs.cntd.ru). ОБЯЗАТЕЛЬНО добавь оговорку, что точные номера пунктов нужно сверить с официальным текстом — возможны неточности.\n'+
+          '4) Не выдумывай данные проекта. Если чего-то нет — так и скажи.\n'+
+          'ДАННЫЕ ПРОЕКТА (марки):\n'+ctx+(pdfCtx?('\nТЕКСТ ЧЕРТЕЖЕЙ (фрагменты):'+pdfCtx):'')+'\nВОПРОС '+role+'у: '+q;
+      }else{
+        prompt='Ты '+role+' по объекту «Север» (082.024). Отвечай ТОЛЬКО по данным проекта ниже, ссылайся на листы, не выдумывай. Если данных нет — скажи об этом.\nПРОЕКТ:\n'+ctx+(pdfCtx?('\nТЕКСТ ЧЕРТЕЖЕЙ:'+pdfCtx):'')+'\nВОПРОС: '+q;
+      }
       const res=await aiFetch({model:S.ai.model,messages:[{role:'user',content:prompt}],temperature:0.1});
       if(!res.ok)throw new Error(res.status);
       const data=await res.json();
       document.getElementById('dChat').lastChild.remove();
-      dMsg('b',esc((data.choices&&data.choices[0].message.content)||'Пустой ответ'));
+      let answer=(data.choices&&data.choices[0].message.content)||'Пустой ответ';
+      if(normMode)answer+='\n\n⚠ Проверьте номера пунктов/страниц по официальному тексту (docs.cntd.ru) — ИИ может ошибаться в нумерации.';
+      dMsg('b',esc(answer));
     }catch(e){document.getElementById('dChat').lastChild.remove();dMsg('b',localDesigner(q));}
   }else dMsg('b',localDesigner(q));
 }
@@ -2253,7 +2491,8 @@ function loadDb(ev){const f=ev.target.files[0];if(!f)return;const r=new FileRead
 function wipe(){if(confirm('Удалить ВСЕ данные (журналы, табель, сотрудники, акты, графики)? Это необратимо.')){const ai=S.ai,company=S.company,persons=S.persons;S={ai,company,persons};normalizeS();persist();renderAll();fillWorkerSelect();aosrFillOzhr();instructFillWorker();alert('Все данные очищены. Реквизиты и настройки ИИ сохранены.');}}
 
 /* ====== AI НАСТРОЙКИ ====== */
-function loadAiUI(){document.getElementById('aiMode').value=S.ai.mode;document.getElementById('aiKey').value=S.ai.key;document.getElementById('aiEnd').value=S.ai.end;document.getElementById('aiModel').value=S.ai.model;}
+function loadAiUI(){document.getElementById('aiMode').value=S.ai.mode;document.getElementById('aiKey').value=S.ai.key;document.getElementById('aiEnd').value=S.ai.end;const sel=document.getElementById('aiModel');const known=[...sel.options].some(o=>o.value===S.ai.model);if(known&&S.ai.model!=='__custom'){sel.value=S.ai.model;document.getElementById('aiModelCustom').style.display='none';}else{sel.value='__custom';const c=document.getElementById('aiModelCustom');c.style.display='block';c.value=S.ai.model;}}
+function aiModelPick(v){document.getElementById('aiModelCustom').style.display=(v==='__custom')?'block':'none';}
 // Готов ли ИИ: режим api И (есть прокси-endpoint ИЛИ введён прямой ключ)
 function aiReady(){return S.ai.mode==='api' && (!!S.ai.end || !!S.ai.key);}
 // Запрос к ИИ через прокси (ключ на сервере) или напрямую (если задан ключ — для локального запуска)
@@ -2265,7 +2504,7 @@ async function aiFetch(body){
   return fetch(S.ai.end,{method:'POST',headers,body:JSON.stringify(body)});
 }
 function toggleKey(){const i=document.getElementById('aiKey'),b=document.getElementById('aiKeyToggle');if(i.type==='password'){i.type='text';b.textContent='🙈 Скрыть';}else{i.type='password';b.textContent='👁 Показать';}}
-function saveAi(){S.ai.mode=document.getElementById('aiMode').value;S.ai.key=document.getElementById('aiKey').value;S.ai.end=document.getElementById('aiEnd').value;S.ai.model=document.getElementById('aiModel').value;persist();alert('Настройки SCAD AI САПР сохранены');}
+function saveAi(){S.ai.mode=document.getElementById('aiMode').value;S.ai.key=document.getElementById('aiKey').value;S.ai.end=document.getElementById('aiEnd').value;const mv=document.getElementById('aiModel').value;S.ai.model=(mv==='__custom')?(document.getElementById('aiModelCustom').value.trim()||'openai/gpt-4o-mini'):mv;persist();alert('Настройки SCAD AI САПР сохранены. Модель: '+S.ai.model);}
 
 /* ====== НАВИГАТОР ПО НОРМАТИВАМ ====== */
 let normCat='';
@@ -2884,7 +3123,7 @@ function reportSignatures(){
   s+='</div>';return s;
 }
 /* ====== ПЛАНЫ ЗАДАЧ ДЛЯ БРИГАД ====== */
-function normalizeS(){if(!S.company)S.company={object:''};if(!S.persons)S.persons=[];['ozhr','ts','workers','memos','orders','regions','gpr','tmc','plans','aosr','strength','checklists','instruct','permits','ocr','photos','incoming'].forEach(k=>{if(!S[k])S[k]=[];});if(!S.ai)S.ai={mode:'api',key:'',end:'/api/chat',model:'openai/gpt-4o-mini'};if(!S.ai.end||S.ai.end.indexOf('api.zveno.ai')>=0)S.ai.end='/api/chat';}
+function normalizeS(){if(!S.company)S.company={object:''};if(!S.persons)S.persons=[];['ozhr','ts','workers','memos','orders','regions','gpr','tmc','plans','aosr','strength','checklists','instruct','permits','ocr','photos','incoming','brigades'].forEach(k=>{if(!S[k])S[k]=[];});if(!S.settings)S.settings={defaultHours:8};if(S.settings.defaultHours==null)S.settings.defaultHours=8;if(!S.ai)S.ai={mode:'api',key:'',end:'/api/chat',model:'openai/gpt-4o-mini'};if(!S.ai.end||S.ai.end.indexOf('api.zveno.ai')>=0)S.ai.end='/api/chat';}
 function createPlan(){
   const date=document.getElementById('plDate').value;
   const brig=document.getElementById('plBrig').value.trim();
@@ -3300,6 +3539,140 @@ function printIncoming(){
 }
 function xlsIncomingExport(){
   exportToXls(S.incoming.map(r=>({Дата:fdate(r.date),Материал:r.name,Поставщик:r.supplier,'Кол-во':r.qty,Документ:r.doc,'Паспорт/сертификат':r.cert,'Требование проекта':r.req,Соответствие:{ok:'соответствует',cond:'условно',no:'не соответствует'}[r.status]||'',Примечание:r.note})),'Входной контроль','Входной_контроль_Север.xlsx');
+}
+/* ====== БРИГАДЫ ====== */
+function addBrigade(){
+  const name=document.getElementById('brName').value.trim();if(!name){alert('Введите название бригады');return;}
+  S.brigades.push({id:Date.now(),name,members:[],work:'',vol:'',unit:'',rate:'',shifts:1,start:'',ai:''});
+  persist();document.getElementById('brName').value='';renderBrigades();
+}
+function delBrigade(id){if(!confirm('Удалить бригаду? Сотрудники вернутся в свободные.'))return;S.brigades=S.brigades.filter(b=>b.id!==id);persist();renderBrigades();}
+function brDragStart(ev,wId){ev.dataTransfer.setData('wId',wId);}
+function brDrop(ev,brId){
+  ev.preventDefault();
+  const wId=ev.dataTransfer.getData('wId');if(!wId)return;
+  // убрать из всех бригад
+  S.brigades.forEach(b=>b.members=b.members.filter(m=>m!=wId));
+  if(brId){const b=S.brigades.find(x=>x.id==brId);if(b&&!b.members.includes(wId))b.members.push(wId);}
+  persist();renderBrigades();
+}
+function brigadeOf(wId){const b=S.brigades.find(b=>b.members.includes(wId)||b.members.includes(String(wId)));return b?b.id:null;}
+function renderBrigades(){
+  const pool=document.getElementById('brPool');const list=document.getElementById('brigadesList');
+  if(!pool||!list)return;
+  const chip=w=>'<span draggable="true" ondragstart="brDragStart(event,'+w.id+')" style="display:inline-block;background:#e2e8f0;border-radius:14px;padding:4px 10px;margin:3px;cursor:grab;font-size:13px" title="перетащите в бригаду">☰ '+esc(w.name)+'</span>';
+  // свободные
+  const free=S.workers.filter(w=>!brigadeOf(w.id));
+  pool.innerHTML=free.length?free.map(chip).join(''):'<span class="muted" style="font-size:12px">все сотрудники распределены</span>';
+  // бригады
+  if(!S.brigades.length){list.innerHTML='<p class="muted">Бригад нет. Создайте бригаду выше.</p>';return;}
+  list.innerHTML=S.brigades.map(b=>{
+    const members=b.members.map(id=>S.workers.find(w=>w.id==id)).filter(Boolean);
+    return '<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:12px;background:#fff">'+
+      '<div class="row" style="justify-content:space-between;align-items:center"><h4 style="margin:0">'+esc(b.name)+' <span class="muted" style="font-weight:400;font-size:12px">('+members.length+' чел.)</span></h4>'+
+      '<button class="btn red sm noprint" onclick="delBrigade('+b.id+')">×</button></div>'+
+      '<div ondragover="event.preventDefault()" ondrop="brDrop(event,'+b.id+')" style="min-height:50px;border:2px dashed #cbd5e1;border-radius:8px;padding:6px;margin:8px 0;background:#f8fafc">'+
+        (members.length?members.map(chip).join(''):'<span class="muted" style="font-size:12px">перетащите сюда сотрудников</span>')+'</div>'+
+      '<div class="row noprint"><div class="col"><label style="font-size:12px">Вид работ бригады</label><select onchange="brSet('+b.id+',\'work\',this.value)">'+
+        '<option value="">— выберите —</option>'+WORKTYPES.map(wt=>'<option'+(b.work===wt?' selected':'')+'>'+wt+'</option>').join('')+'</select></div>'+
+        '<div class="col"><label style="font-size:12px">Объём</label><input value="'+esc(b.vol||'')+'" onchange="brSet('+b.id+',\'vol\',this.value)" placeholder="напр.: 12"></div>'+
+        '<div class="col"><label style="font-size:12px">Ед.</label><input value="'+esc(b.unit||'')+'" onchange="brSet('+b.id+',\'unit\',this.value)" placeholder="м³"></div></div>'+
+      '<div class="row noprint"><div class="col"><label style="font-size:12px">Норма выработки (ед./чел.-смену)</label><input value="'+esc(b.rate||'')+'" onchange="brSet('+b.id+',\'rate\',this.value)" placeholder="подставится по виду работ"></div>'+
+        '<div class="col"><label style="font-size:12px">Смен в дне</label><input type="number" min="1" max="2" value="'+(b.shifts||1)+'" onchange="brSet('+b.id+',\'shifts\',this.value)"></div></div>'+
+      '<div class="noprint" style="margin-top:8px"><button class="btn sm green" onclick="brCalc('+b.id+')">🧮 Рассчитать срок бригады</button> <button class="btn sm" style="background:#7C3AED" onclick="brAiVyrabotka('+b.id+')">🤖 ИИ-оценка выработки</button> <button class="btn sm gray" onclick="brToGpr('+b.id+')">→ ГПР</button></div>'+
+      '<div id="brResult'+b.id+'" style="margin-top:8px"></div>'+
+      (b.ai?'<div style="margin-top:6px;background:#f5f3ff;border-radius:8px;padding:8px;font-size:12px"><b>🤖 ИИ:</b> '+esc(b.ai)+'</div>':'')+
+    '</div>';
+  }).join('');
+}
+function brSet(id,field,val){const b=S.brigades.find(x=>x.id==id);if(!b)return;b[field]=val;if(field==='work'){const o=OUTPUT.find(x=>x.work===val);if(o&&!b.rate){b.rate=o.rate;if(!b.unit)b.unit=o.unit;}}persist();if(field==='work')renderBrigades();}
+function brCalc(id){
+  const b=S.brigades.find(x=>x.id==id);if(!b)return;
+  const members=b.members.length||1;
+  const vol=parseFloat(b.vol);let rate=parseFloat(b.rate);
+  if(!rate){const o=OUTPUT.find(x=>x.work===b.work);if(o)rate=o.rate;}
+  const el=document.getElementById('brResult'+id);
+  if(!vol||vol<=0){el.innerHTML='<span class="muted">Укажите объём работ.</span>';return;}
+  if(!rate||rate<=0){el.innerHTML='<span class="muted">Укажите норму выработки или выберите вид работ.</span>';return;}
+  const shifts=parseInt(b.shifts)||1;
+  const perDay=rate*members*shifts;
+  const days=Math.max(1,Math.ceil(vol/perDay));
+  const labor=+(vol/rate).toFixed(1);
+  el.innerHTML='<div class="banner ok" style="margin:0"><b>Срок: '+days+' смен(ы)</b> · бригада '+members+' чел.'+(shifts>1?(' × '+shifts+' смены'):'')+'<br><span class="muted">Объём '+vol+' '+esc(b.unit||'')+' ÷ ('+rate+'×'+members+(shifts>1?('×'+shifts):'')+') = '+days+' дн. Трудоёмкость '+labor+' чел.-смен. Ориентировочно (ЕНиР/ГЭСН — точнее).</span></div>';
+  b._days=days;
+}
+async function brAiVyrabotka(id){
+  const b=S.brigades.find(x=>x.id==id);if(!b)return;
+  if(!aiReady()){alert('Для ИИ-оценки включите ZVENO (на Render — через прокси).');return;}
+  const el=document.getElementById('brResult'+id);el.innerHTML='<span class="muted">⏳ ИИ оценивает выработку…</span>';
+  try{
+    const members=b.members.map(mid=>{const w=S.workers.find(x=>x.id==mid);return w?w.name+(w.post?(' ('+w.post+')'):''):'';}).filter(Boolean).join(', ');
+    const prompt='Ты нормировщик ПТО (объект «Север», монолит, бассейн). Оцени выработку и трудоёмкость для бригады.\nБригада: '+b.name+'. Состав ('+b.members.length+' чел.): '+members+'.\nВид работ: '+(b.work||'не указан')+'. Объём: '+(b.vol||'?')+' '+(b.unit||'')+'.\nДай: 1) ориентировочную норму выработки на 1 рабочего в смену, 2) трудоёмкость (чел.-смен), 3) срок в сменах для этой бригады, 4) на какие нормы опираться (ЕНиР/ГЭСН — конкретные сборники, если знаешь). Кратко, по делу. Подчеркни, что значения ориентировочные и для смет нужен официальный ЕНиР/ГЭСН.';
+    const res=await aiFetch({model:S.ai.model,messages:[{role:'user',content:prompt}],temperature:0.2});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const d=await res.json();const out=(d.choices&&d.choices[0]&&d.choices[0].message.content)||'';
+    if(!out)throw new Error('пустой ответ');
+    b.ai=out;persist();renderBrigades();
+  }catch(e){el.innerHTML='<span class="muted">ИИ недоступен: '+esc(e.message)+'. Используйте расчёт по норме выше.</span>';}
+}
+function brToGpr(id){
+  const b=S.brigades.find(x=>x.id==id);if(!b)return;
+  if(!b.work){alert('Укажите вид работ бригады');return;}
+  brCalc(id);const days=b._days||1;
+  const start=new Date().toISOString().split('T')[0];
+  const end=new Date(Date.now()+(days-1)*86400000).toISOString().split('T')[0];
+  S.gpr.push({id:Date.now(),work:b.work,zone:b.name,start,end,vol:b.vol||'',unit:b.unit||'',resp:'',brig:b.name});
+  S.gpr.sort((a,b)=>a.start<b.start?-1:1);persist();renderGpr&&renderGpr();renderGantt&&renderGantt();
+  alert('Работа бригады добавлена в ГПР ('+days+' дн.).');
+}
+/* ====== АНАЛИЗ ПРОЕКТА (ИИ) ====== */
+let PROJ_ANALYSIS='';
+async function runProjectAnalysis(){
+  if(!aiReady()){alert('Для анализа проекта включите ZVENO (Настройки ИИ). Рекомендуется модель Claude.');return;}
+  const scope=document.getElementById('paScope').value;
+  const btn=document.getElementById('paBtn'),prog=document.getElementById('paProg'),bar=document.getElementById('paBar'),stat=document.getElementById('paStat'),result=document.getElementById('paResult');
+  btn.disabled=true;prog.style.display='block';bar.style.width='15%';stat.textContent='Собираю данные проекта…';result.innerHTML='';
+  document.getElementById('paPdfBtn').style.display='none';
+  try{
+    const marks=PDB.elements.map(e=>e.mark+': '+e.spec+' ['+e.sheet+']').join('\n');
+    let pdfCtx='';PDFS.forEach(p=>p.pages.forEach(pg=>{if(pg.text&&pg.text.trim().length>30&&pdfCtx.length<18000)pdfCtx+='\n['+p.name+' л.'+pg.n+']: '+pg.text.slice(0,1800);}));
+    if(scope==='all'&&!pdfCtx){if(!confirm('Загруженных PDF с текстом нет — анализ пойдёт только по базе марок. Продолжить?')){btn.disabled=false;prog.style.display='none';return;}}
+    bar.style.width='35%';stat.textContent='ИИ выполняет глубокий анализ (модель: '+S.ai.model+')…';
+    const prompt='Ты — независимый эксперт-проектировщик и нормоконтролёр по объекту «Север» (082.024, монолитный железобетон, бассейн, Северодвинск). Проведи ГЛУБОКИЙ анализ проекта и составь отчёт.\n'+
+      'ЗАДАЧИ:\n'+
+      '1) Проверь полноту и непротиворечивость данных проекта (марки, классы бетона, арматура, защитные слои, гидроизоляция).\n'+
+      '2) Выяви возможные ОШИБКИ, нестыковки, пропуски, риски (например: несоответствие классов бетона условиям эксплуатации, вопросы по армированию, морозостойкости, водонепроницаемости для бассейна).\n'+
+      '3) Для каждого замечания укажи: что не так, где (марка/лист), чем грозит, ссылку на норматив (СП/СНиП/ГОСТ) с оговоркой о проверке пункта.\n'+
+      '4) Приоритет — данные проекта ниже. Нормативы привлекай там, где в проекте нет данных.\n'+
+      'ФОРМАТ: 1) Краткое резюме. 2) Перечень замечаний (нумерованный, по убыванию важности). 3) Что запросить у проектировщика. 4) Оговорка о границах анализа.\n'+
+      'Не выдумывай данные проекта. Если чего-то нет в данных — отметь как «требует уточнения», а не как факт.\n\n'+
+      'ДАННЫЕ ПРОЕКТА (марки/спецификации):\n'+marks+(pdfCtx?('\n\nТЕКСТ ЧЕРТЕЖЕЙ (фрагменты):'+pdfCtx):'');
+    const res=await aiFetch({model:S.ai.model,messages:[{role:'user',content:prompt}],temperature:0.2});
+    if(!res.ok)throw new Error('HTTP '+res.status+(res.status===400?' (модель недоступна?)':''));
+    bar.style.width='90%';
+    const data=await res.json();
+    const out=(data.choices&&data.choices[0]&&data.choices[0].message.content)||'';
+    if(!out)throw new Error('пустой ответ ИИ');
+    PROJ_ANALYSIS=out;
+    bar.style.width='100%';stat.textContent='✓ Анализ завершён (модель: '+S.ai.model+').';
+    result.innerHTML='<div class="banner ok" style="white-space:pre-wrap;line-height:1.6">'+esc(out)+'</div><div class="banner warn" style="margin-top:8px;font-size:12px">⚠ Это ИИ-анализ — помощник, не экспертиза. Все замечания и ссылки на нормативы проверяет инженер по официальным документам.</div>';
+    document.getElementById('paPdfBtn').style.display='block';
+  }catch(e){
+    stat.textContent='✗ Ошибка анализа: '+e.message;
+    result.innerHTML='<div class="banner err">Не удалось выполнить анализ: '+esc(e.message)+'. Проверьте настройки ИИ (ZVENO) и доступность модели.</div>';
+  }finally{btn.disabled=false;setTimeout(()=>{prog.style.display='none';},600);}
+}
+function exportProjectAnalysisPdf(){
+  if(!PROJ_ANALYSIS){alert('Сначала выполните анализ');return;}
+  const w=window.open('','_blank');
+  const esc2=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  w.document.write('<html><head><title>Отчёт анализа проекта</title></head><body style="font-family:Arial;padding:28px;font-size:13px;line-height:1.6">'+
+    reportHeader('ОТЧЁТ ПО АНАЛИЗУ ПРОЕКТА (ИИ) — объект 082.024')+
+    '<p style="color:#666;font-size:12px">Модель ИИ: '+esc2(S.ai.model)+'. Дата: '+fdate(new Date().toISOString().split('T')[0])+'</p>'+
+    '<div style="white-space:pre-wrap">'+esc2(PROJ_ANALYSIS)+'</div>'+
+    '<div style="margin-top:16px;padding:10px;border:1px solid #c00;border-radius:6px;font-size:11px;color:#900">Внимание: отчёт сформирован системой ИИ как вспомогательный инструмент проверки и не заменяет экспертизу проектной документации. Все замечания и ссылки на нормативные документы подлежат проверке ответственными специалистами по официальным текстам (docs.cntd.ru и др.).</div>'+
+    reportSignatures()+'</body></html>');
+  w.document.close();w.print();
 }
 /* ====== УТИЛИТЫ ====== */
 function renderAll(){renderOzhr();renderTs();renderWorkers();renderMemos();renderOrders();renderGpr();renderGantt();renderTmc();renderPlans();renderDashboard();renderAosr();renderStrength();renderChecklists();renderInstruct();renderPermits();renderPhotos();renderIncoming();}
