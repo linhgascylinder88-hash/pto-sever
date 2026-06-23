@@ -17,6 +17,10 @@ const ZVENO_URL = process.env.ZVENO_URL || 'https://api.zveno.ai/v1/chat/complet
 const APP_LOGIN = process.env.APP_LOGIN || '';
 const APP_PASSWORD = process.env.APP_PASSWORD || '';
 const AUTH_SECRET = process.env.AUTH_SECRET || 'change-me-secret';
+// Файл общей базы. На Render с Persistent Disk укажите DATA_DIR=/var/data (путь смонтированного диска).
+// Без диска файл лежит рядом с сервером (на бесплатном плане может сбрасываться при передеплое).
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+const DATA_FILE = path.join(DATA_DIR, 'pto_data_sever.json');
 
 const MIME = { '.html':'text/html; charset=utf-8', '.bat':'text/plain', '.md':'text/markdown; charset=utf-8', '.txt':'text/plain; charset=utf-8' };
 
@@ -104,6 +108,28 @@ const server = http.createServer((req, res) => {
   }
 
   // === ДАЛЬШЕ — только для авторизованных ===
+
+  // --- ОБЩАЯ БАЗА: загрузка ---
+  if (req.url === '/api/data' && req.method === 'GET') {
+    fs.readFile(DATA_FILE, 'utf8', (err, data) => {
+      res.writeHead(200, {'Content-Type':'application/json; charset=utf-8'});
+      res.end(err ? '{}' : (data || '{}'));
+    });
+    return;
+  }
+  // --- ОБЩАЯ БАЗА: сохранение ---
+  if (req.url === '/api/data' && req.method === 'POST') {
+    let body=''; req.on('data',c=>{body+=c; if(body.length>2e7) req.destroy();});
+    req.on('end', ()=>{
+      // простая проверка, что это JSON
+      try { JSON.parse(body); } catch(e){ res.writeHead(400,{'Content-Type':'application/json'}); return res.end(JSON.stringify({error:'invalid json'})); }
+      fs.writeFile(DATA_FILE, body, 'utf8', err => {
+        if(err){ res.writeHead(500,{'Content-Type':'application/json'}); return res.end(JSON.stringify({error:'write failed: '+err.message})); }
+        res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,saved:body.length}));
+      });
+    });
+    return;
+  }
 
   // ПРОКСИ к ZVENO
   if (req.url === '/api/chat' && req.method === 'POST') {

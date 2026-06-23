@@ -96,6 +96,7 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <div><h1>ПТО «Север» — Контроль СМР</h1><div class="sub">Спорткомплекс «Север», г. Северодвинск · Плавательный бассейн (082.024)</div></div>
 <div class="sub" id="dbStatus">База: загрузка…</div>
 <button class="btn sm" style="margin-left:12px;background:#305496" onclick="switchTab('tab-help')">📖 Руководство</button>
+<button class="btn sm" style="margin-left:8px;background:#1F8A4C" onclick="serverRefresh()" id="refreshBtn" title="загрузить свежие данные с сервера">🔄 Обновить</button>
 <button class="btn sm" style="margin-left:8px;background:#64748b" onclick="if(confirm('Выйти из приложения?'))location.href='/logout'">🚪 Выход</button>
 <button class="btn red sm" style="margin-left:8px" onclick="openCloseDialog()">✕ Закрыть</button>
 </header>
@@ -1280,19 +1281,26 @@ const LSK='PTO_SEVER_V21';
 if(typeof pdfjsLib!=='undefined') pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 /* ====== ИНИЦИАЛИЗАЦИЯ ====== */
-document.addEventListener('DOMContentLoaded',()=>{
-  loadLS();
+document.addEventListener('DOMContentLoaded',async ()=>{
+  // пробуем общую базу на сервере (Render). Если есть — используем её вместо локальной.
+  const onServer=await serverLoad();
+  if(!onServer)loadLS();
+  initUI();
+  if(onServer){const b=document.getElementById('dbStatus');if(b)b.textContent='Общая база на сервере · '+PDB.elements.length+' элементов проекта';}
+  else{const rb=document.getElementById('refreshBtn');if(rb)rb.style.display='none';}
+  if(!onServer)showWelcome();
+});
+function initUI(){
   document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
   const today=new Date().toISOString().split('T')[0];
   ['oDate','tsDate','mDate','orDate','tmDate','gStart','gEnd','plDate','cbDate','aoDate','aoStart','stDate','inDate','pmDate','pmFrom','pmTo','vyStart','phDate','icDate'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=today;});
-  document.getElementById('dbStatus').textContent='База проекта: '+PDB.elements.length+' элементов';
+  if(document.getElementById('dbStatus'))document.getElementById('dbStatus').textContent='База проекта: '+PDB.elements.length+' элементов';
   fillElSelect(); fillWorkerSelect(); renderAll(); loadAiUI();
   djFillPdfSel(); normCatsRender(); showNorms(NORMS,''); djRenderRegions(); fillWorkSelects(); ozhrFillSelects(); gprFillWork(); renderGpr(); renderGantt(); loadCompanyUI(); setDbStatus(); cbFillEl(); cbFillPdfSel(); cbRenderItems(); cbRenderRegions(); rbFillPdfSel(); rbRenderNodes(); aosrFillOzhr(); instructFillWorker(); renderDashboard(); renderAosr(); renderStrength(); renderChecklists(); renderInstruct(); renderPermits(); vyFill(); plFillPdfSel(); renderTsGrid(); ocrFillPdfSel(); phFillOzhr(); renderPhotos(); renderIncoming();
   const dps=document.getElementById('djPdfSel');if(dps)dps.addEventListener('change',e=>{if(e.target.value){DJ.img=null;djLoadPdfPage(e.target.value);}});
   const cps=document.getElementById('cbPdfSel');if(cps)cps.addEventListener('change',e=>{if(e.target.value){CB.img=null;cbLoadPdfPage(e.target.value);}});
   const rps=document.getElementById('rbPdfSel');if(rps)rps.addEventListener('change',e=>{if(e.target.value){RB.img=null;rbLoadPdfPage(e.target.value);}});
-  showWelcome();
-});
+}
 
 function switchTab(id){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -1312,8 +1320,54 @@ function closeM(id){document.getElementById(id).classList.remove('active');}
 let dbHandle=null,saveTimer=null,fsSupported=(typeof window!=='undefined'&&'showSaveFilePicker'in window);
 function persist(){
   S._saved=Date.now();
-  if(dbHandle){scheduleFileSave();}      // основное хранилище — файл
-  else{try{localStorage.setItem(LSK,JSON.stringify(S));}catch(e){}}  // аварийная копия, пока файл не привязан
+  if(SERVER_DB){serverSave();return;}     // общая база на сервере (Render)
+  if(dbHandle){scheduleFileSave();}      // локальный файл
+  else{try{localStorage.setItem(LSK,JSON.stringify(S));}catch(e){}}  // аварийная копия
+}
+async function serverRefresh(){
+  if(!SERVER_DB){alert('Общая база доступна только при работе через сервер (Render). Локально данные хранятся у вас.');return;}
+  const btn=document.getElementById('refreshBtn');if(btn){btn.textContent='⏳…';btn.disabled=true;}
+  const ok=await serverLoad();
+  if(ok){fillElSelect();fillWorkerSelect();renderAll();renderTsGrid();loadCompanyUI();loadAiUI();}
+  if(btn){btn.textContent='🔄 Обновить';btn.disabled=false;}
+  if(ok)alert('Данные обновлены с сервера.');
+}
+// ===== ОБЩАЯ БАЗА НА СЕРВЕРЕ =====
+let SERVER_DB=false;          // включается, если приложение открыто на сервере с /api/data
+let _srvSaveTimer=null, _srvSaving=false, _srvPending=false;
+async function serverLoad(){
+  try{
+    const res=await fetch('/api/data',{headers:{'Accept':'application/json'}});
+    if(!res.ok)return false;
+    const data=await res.json();
+    if(data&&typeof data==='object'&&Object.keys(data).length){
+      // не затираем настройки ИИ локальными, если на сервере их нет
+      S=data;normalizeS();
+    }
+    SERVER_DB=true;return true;
+  }catch(e){return false;}
+}
+function serverSave(){
+  // debounce: не чаще раза в 1.5 сек
+  if(_srvSaveTimer)clearTimeout(_srvSaveTimer);
+  _srvSaveTimer=setTimeout(doServerSave,1500);
+  setDbStatus&&setDbStatus();
+}
+async function doServerSave(){
+  if(_srvSaving){_srvPending=true;return;}
+  _srvSaving=true;
+  try{
+    const body=JSON.stringify(S);
+    const res=await fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},body});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    S._savedServer=Date.now();
+  }catch(e){
+    // если сервер недоступен — аварийно в localStorage
+    try{localStorage.setItem(LSK,JSON.stringify(S));}catch(_){}
+  }finally{
+    _srvSaving=false;
+    if(_srvPending){_srvPending=false;doServerSave();}
+  }
 }
 function scheduleFileSave(){clearTimeout(saveTimer);setDbStatus('saving');saveTimer=setTimeout(async()=>{const ok=await writeDbFile();setDbStatus(ok?'saved':'error');},500);}
 async function writeDbFile(){if(!dbHandle)return false;try{S._saved=Date.now();const w=await dbHandle.createWritable();await w.write(JSON.stringify(S,null,1));await w.close();return true;}catch(e){console.error('Запись БД:',e);return false;}}
