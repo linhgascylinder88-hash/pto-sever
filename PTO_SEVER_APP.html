@@ -2000,15 +2000,38 @@ function runSearch(){
   const raw=document.getElementById('sQuery').value.trim();
   if(!raw)return;
   const norm=s=>(s||'').toLowerCase().replace(/ё/g,'е').replace(/\s*-\s*/g,'-').replace(/\s+/g,' ');
-  const glue=s=>(s||'').toLowerCase().replace(/ё/g,'е').replace(/[\s\-—.]/g,''); // склеенный, без пробелов/дефисов/точек
+  const glue=s=>(s||'').toLowerCase().replace(/ё/g,'е').replace(/[\s\-—.]/g,'');
   const q=norm(raw);const qg=glue(raw);
   const words=q.split(' ').filter(w=>w.length>=2);
-  const match=hay=>{const h=norm(hay);if(h.includes(q)||words.every(w=>h.includes(w)))return true;return glue(hay).includes(qg);};
-  // поиск по базе
-  let r=allElements().filter(e=>match(e.mark+' '+e.type+' '+e.spec+' '+e.cat));
-  // сквозной поиск по ВСЕМ загруженным PDF (фраза / слова / склеенный текст)
+  // оценка релевантности куска текста к запросу (чем больше — тем релевантнее; 0 = не подходит)
+  const score=hay=>{
+    const h=norm(hay);let s=0;
+    if(h.includes(q)){s+=100;                                   // точная фраза
+      // вхождение в начале (заголовок/штамп листа) — важнее
+      const pos=h.indexOf(q);if(pos<200)s+=40;
+      // частота вхождений
+      let c=0,i=h.indexOf(q);while(i>=0){c++;i=h.indexOf(q,i+q.length);}s+=Math.min(c*8,40);
+    } else if(words.length>1&&words.every(w=>h.includes(w))){
+      s+=50;                                                    // все слова, но не подряд
+      // близость слов: если все в первых 300 симв — бонус
+      if(words.every(w=>h.indexOf(w)<300))s+=15;
+    } else if(glue(hay).includes(qg)){
+      s+=25;                                                    // склеенный (разорванная марка) — слабее
+    } else return 0;
+    // штраф за «содержание/ведомость» — там обычно только упоминание, не сам объект
+    if(/содержание|ведомость|состав\s|общие\s+данные|перечень/i.test(hay.slice(0,400)))s-=35;
+    return Math.max(s,1);
+  };
+  // база: оценка по марке (марка важнее, чем упоминание в описании)
+  let r=allElements().map(e=>{
+    const markScore=score(e.mark)*2; // совпадение в самой марке — вдвое ценнее
+    const sc=Math.max(markScore,score(e.mark+' '+e.type+' '+e.spec+' '+e.cat));
+    return {e,sc};
+  }).filter(x=>x.sc>0).sort((a,b)=>b.sc-a.sc).map(x=>x.e);
+  // PDF: оценка по тексту листа
   let pdfHits=[];
-  PDFS.forEach(p=>p.pages.forEach(pg=>{ if(match(pg.text))pdfHits.push({pdf:p.name,n:pg.n,text:pg.text}); }));
+  PDFS.forEach(p=>p.pages.forEach(pg=>{const sc=score(pg.text);if(sc>0)pdfHits.push({pdf:p.name,n:pg.n,text:pg.text,sc});}));
+  pdfHits.sort((a,b)=>b.sc-a.sc); // самые релевантные листы — вверх
   showResults(r,'Поиск: «'+raw+'»',pdfHits);
 }
 function axisSearch(){
@@ -2037,7 +2060,7 @@ function showResults(arr,title,pdfHits){
     // сортируем: сначала «содержательные» листы, потом содержание/ведомости (где упоминание, а не сам чертёж)
     const isIndex=t=>/содержание|ведомость|состав|общие данные|перечень|спецификаци/i.test(t.slice(0,400));
     const hits=pdfHits.map(p=>({...p,idx:isIndex(p.text)}));
-    hits.sort((a,b)=>a.idx-b.idx); // не-содержание сначала
+    // порядок уже задан релевантностью (sc) в runSearch — здесь не пересортировываем
     h+='<h3>Найдено в загруженных PDF ('+hits.length+' лист.) — нажмите для перехода на лист</h3>';
     hits.forEach(p=>{
       const low=p.text.toLowerCase();const pos=low.indexOf(q);
