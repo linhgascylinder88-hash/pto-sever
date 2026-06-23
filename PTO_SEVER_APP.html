@@ -599,7 +599,10 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <div class="banner warn" style="margin-bottom:8px"><b>Когда нужно:</b> если у листа нет текстового слоя (чистая графика/скан) и поиск его не находит. OCR прочитает <b>надписи и марки</b> с изображения и добавит их в поиск. <b>Не распознаёт геометрию</b> чертежа. Медленно: 10–40 сек на лист. Нужен интернет.</div>
 <div class="row">
 <div class="col"><label>Выберите лист загруженного PDF</label><select id="ocrPdfSel"></select></div>
-<div style="display:flex;align-items:flex-end"><button class="btn green" onclick="runOcr()" id="ocrBtn">🔎 Распознать текст (OCR)</button></div>
+<div style="display:flex;align-items:flex-end;gap:6px"><button class="btn green" onclick="runOcr()" id="ocrBtn">🔎 Распознать лист</button><button class="btn" style="background:#7C3AED" onclick="runOcrAll()" id="ocrAllBtn">📚 Распознать ВСЕ документы</button></div>
+</div>
+<div class="banner warn" style="margin-top:6px;font-size:12px">⚠ Пакетный OCR обрабатывает все листы без текстового слоя во всех загруженных PDF. Это долго: ~10–40 сек на лист (тома в сотни листов — десятки минут). Можно прервать. Результаты сохраняются в базу.</div>
+<div class="noprint" id="ocrAllStop" style="display:none;margin-top:6px"><button class="btn red sm" onclick="OCRALL.stop=true">⛔ Прервать распознавание</button></div
 </div>
 <div class="progress" id="ocrProg" style="display:none;margin-top:8px"><div id="ocrBar"></div></div>
 <div class="muted" id="ocrStat" style="margin-top:6px"></div>
@@ -1944,6 +1947,57 @@ function ocrShowSaved(){
   el.innerHTML='💾 В базе сохранён распознанный текст для '+S.ocr.length+' лист(ов): '+S.ocr.map(o=>esc(o.pdf)+' л.'+o.n).slice(0,8).join(', ')+(S.ocr.length>8?'…':'')+' <span onclick="ocrClear()" style="color:var(--red);cursor:pointer">очистить кэш OCR</span>';
 }
 function ocrClear(){if(!confirm('Удалить весь сохранённый OCR-текст из базы? (распознавание нужно будет повторить)'))return;S.ocr=[];persist();ocrShowSaved();alert('Кэш OCR очищен.');}
+let OCRALL={running:false,stop:false};
+async function runOcrAll(){
+  if(OCRALL.running)return;
+  if(!PDFS.length){alert('Сначала загрузите PDF чертежей.');return;}
+  if(typeof Tesseract==='undefined'){alert('Библиотека OCR не загрузилась. Нужен интернет (на Render — есть).');return;}
+  // собираем листы БЕЗ текстового слоя (где OCR нужен) и ещё не распознанные
+  const tasks=[];
+  PDFS.forEach((doc,pi)=>doc.pages.forEach(pg=>{
+    const hasText=(pg.text||'').replace(/\[OCR\][\s\S]*/,'').trim().length>=20;
+    if(!hasText&&!pg.ocr)tasks.push({pi,n:pg.n,doc});
+  }));
+  const prog=document.getElementById('ocrProg'),bar=document.getElementById('ocrBar'),stat=document.getElementById('ocrStat'),result=document.getElementById('ocrResult');
+  const allBtn=document.getElementById('ocrAllBtn'),stopBox=document.getElementById('ocrAllStop');
+  if(!tasks.length){alert('Нет листов, требующих OCR: у всех загруженных листов уже есть текст или они распознаны. Пакетный OCR не нужен.');return;}
+  if(!confirm('Будет распознано листов: '+tasks.length+'. Это может занять ~'+Math.ceil(tasks.length*25/60)+' мин. Продолжить?'))return;
+  OCRALL.running=true;OCRALL.stop=false;
+  allBtn.disabled=true;document.getElementById('ocrBtn').disabled=true;stopBox.style.display='block';prog.style.display='block';result.innerHTML='';
+  pdfLog&&pdfLog('▶ Пакетный OCR: '+tasks.length+' лист(ов)','head');
+  let doneOcr=0,totalMarks=0,addedTotal=0;const t0=Date.now();
+  for(let k=0;k<tasks.length;k++){
+    if(OCRALL.stop){stat.textContent='⛔ Прервано пользователем на '+k+' из '+tasks.length;break;}
+    const {pi,n,doc}=tasks[k];
+    bar.style.width=Math.round(k/tasks.length*100)+'%';
+    stat.textContent='OCR '+(k+1)+'/'+tasks.length+': '+doc.name+' — лист '+n;
+    try{
+      const pdf=await pdfjsLib.getDocument({data:doc.buffer.slice(0)}).promise;
+      const page=await pdf.getPage(n);const vp=page.getViewport({scale:3});
+      const cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;
+      await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+      const {data}=await Tesseract.recognize(cv,'rus+eng');
+      const text=(data.text||'').replace(/\s+\n/g,'\n').trim();
+      const pg=doc.pages.find(x=>x.n===n);
+      if(pg){pg.text=(pg.text||'')+'\n[OCR]\n'+text;pg.ocr=true;}
+      // сохраняем в базу
+      const okey=doc.name+'|'+n;const exist=S.ocr.find(o=>o.key===okey);
+      if(exist){exist.text=text;exist.date=Date.now();}else S.ocr.push({key:okey,pdf:doc.name,n:n,text:text,date:Date.now()});
+      const before=EXTRACTED.length;extractMarks(doc);addedTotal+=EXTRACTED.length-before;
+      const marks=(typeof indexPageMarks==='function')?indexPageMarks(text).length:0;totalMarks+=marks;
+      doneOcr++;
+      pdfLog&&pdfLog('  ✓ '+doc.name+' л.'+n+': '+text.split(/\s+/).filter(Boolean).length+' слов, марок '+marks,'ok');
+      if(k%3===0){persist();await new Promise(r=>setTimeout(r,0));}
+    }catch(e){pdfLog&&pdfLog('  ✗ '+doc.name+' л.'+n+': '+e.message,'err');}
+  }
+  bar.style.width='100%';persist();
+  const sec=((Date.now()-t0)/1000).toFixed(0);
+  stat.textContent='■ Готово: распознано '+doneOcr+' лист(ов) за '+sec+' с. Найдено марок ~'+totalMarks+', добавлено в базу +'+addedTotal+'. Текст доступен поиску.';
+  result.innerHTML='<div class="banner ok">Пакетный OCR завершён. Распознанные листы теперь участвуют в поиске по чертежам. Результаты сохранены в базу — при повторной загрузке тех же PDF восстановятся.</div>';
+  fillElSelect();ocrFillPdfSel();ocrShowSaved();
+  OCRALL.running=false;allBtn.disabled=false;document.getElementById('ocrBtn').disabled=false;stopBox.style.display='none';
+  setTimeout(()=>{prog.style.display='none';},800);
+}
 async function runOcr(){
   const sel=document.getElementById('ocrPdfSel').value;
   if(!sel){alert('Выберите лист PDF для распознавания');return;}
