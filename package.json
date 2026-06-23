@@ -1,0 +1,12 @@
+{
+  "name": "pto-sever",
+  "version": "1.0.0",
+  "description": "ПТО Север 082.024 — приложение + прокси ZVENO",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
