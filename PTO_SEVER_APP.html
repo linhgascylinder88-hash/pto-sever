@@ -134,6 +134,7 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <button class="navbtn" data-tab="tab-ppr">📋 Создание ППР (SCAD AI САПР)</button>
 <button class="navbtn" data-tab="tab-designer">🤖 SCAD AI САПР — Проектировщик</button>
 <button class="navbtn" data-tab="tab-projanalysis">🔍 Анализ проекта (ИИ)</button>
+<button class="navbtn" data-tab="tab-preview">🖼 Предпросмотр чертежей</button>
 </div></div>
 <div class="navgroup"><button class="navhead">📄 Документы ▾</button><div class="navmenu">
 <button class="navbtn" data-tab="tab-docs">📄 Записки / Заявки</button>
@@ -638,6 +639,28 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <div class="progress" id="pdfProg" style="display:none"><div id="pdfBar"></div></div>
 <div class="muted" id="pdfStat"></div>
 <div id="pdfList" style="margin-top:8px"></div>
+<div class="noprint" style="margin-top:6px"><button class="btn gray sm" onclick="diagIndex()">🔬 Диагностика индексации (что распозналось по листам)</button></div>
+<div id="diagResult" style="margin-top:8px"></div>
+<div class="card" style="background:#fffbeb;border-color:#fde68a;margin-top:12px">
+<div class="row noprint" style="justify-content:space-between;align-items:center">
+<h3 style="margin:0">📑 Интерактивное содержание</h3>
+<button class="btn gray sm" onclick="buildToc()">обновить содержание</button>
+</div>
+<div class="banner info" style="font-size:12px;margin:6px 0">Распознаёт листы «Содержание/Ведомость чертежей» и делает строки кликабельными — переход на нужный лист. Номер берётся из содержания; если нумерация PDF смещена (титул/обложка), используйте поправку.</div>
+<div class="row noprint" style="align-items:flex-end;gap:8px">
+<div><label class="muted" style="font-size:12px">Поправка номера (PDF = лист + N)</label><input type="number" id="tocOffset" value="0" style="width:90px"></div>
+<span class="muted" style="font-size:11px">напр.: если «лист 1» в содержании = странице 3 PDF, поставьте 2</span>
+</div>
+<div id="tocList" style="margin-top:8px"></div>
+</div>
+<div class="card" style="background:#f0f7ff;border-color:#bfdbfe;margin-top:12px">
+<div class="row noprint" style="justify-content:space-between;align-items:center">
+<h3 style="margin:0">📑 Содержание проекта (интерактивное)</h3>
+<button class="btn sm" style="background:#229ED9" onclick="buildToc()">Сформировать из загруженных PDF</button>
+</div>
+<div class="muted" style="font-size:12px;margin:6px 0">Распознаёт строки содержания (наименование → лист) и делает их кликабельными. Нажмите строку — переход на лист. <b>Важно:</b> номер берётся из текста содержания; если нумерация PDF смещена (титул/обложка), перейдёте близко — поправьте стрелками в просмотрщике.</div>
+<div id="tocList"></div>
+</div>
 <div class="card" style="background:#f0f9f4;border-color:#bbf7d0;margin-top:12px">
 <h3 style="margin-top:0">🔎 OCR — распознать текст на «картиночном» листе</h3>
 <div class="banner warn" style="margin-bottom:8px"><b>Когда нужно:</b> если у листа нет текстового слоя (чистая графика/скан) и поиск его не находит. OCR прочитает <b>надписи и марки</b> с изображения и добавит их в поиск. <b>Не распознаёт геометрию</b> чертежа. Медленно: 10–40 сек на лист. Нужен интернет.</div>
@@ -966,6 +989,15 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <div class="col"><input id="dInput" placeholder="Ваш вопрос…" onkeydown="if(event.key==='Enter')askDesigner()"></div>
 <div style="display:flex;align-items:flex-end"><button class="btn" onclick="askDesigner()">Спросить</button></div>
 </div>
+<div style="margin-top:8px;padding:8px;background:#f0f9f4;border-radius:8px">
+<label style="font-weight:600;font-size:13px">📎 Дополнительные материалы для анализа (по желанию):</label>
+<div class="row" style="margin-top:6px;gap:10px;flex-wrap:wrap">
+<div><label class="muted" style="font-size:12px">Файл (PDF/TXT) — добавится в контекст</label><input type="file" id="dFile" accept=".pdf,.txt,.md,.csv" onchange="dLoadFile(event)"></div>
+<div><label class="muted" style="font-size:12px">Изображение — ИИ опишет (vision)</label><input type="file" id="dImg" accept="image/*" onchange="dLoadImg(event)"></div>
+</div>
+<div id="dAttachInfo" class="muted" style="font-size:12px;margin-top:6px"></div>
+<div class="muted" style="font-size:11px;margin-top:2px">Файлы: берётся текстовый слой (для PDF). Изображения (скриншот сайта, фото): нужна vision-модель (gpt-4o, Claude). Для описания фото можно также использовать вкладку «Фотофиксация».</div>
+</div>
 <div style="margin-top:8px;padding:8px;background:#f5f3ff;border-radius:8px">
 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600"><input type="checkbox" id="dNormMode" style="width:16px;height:16px"> 📚 Режим нормоконтроля (СНиП/СП/РДС/МДС и др.)</label>
 <div class="muted" style="font-size:12px;margin-top:4px">Приоритет — данные чертежа. Если на чертеже нет ответа, ИИ привлекает строительные нормативы (армирование, бетонирование, разбивка) с указанием документа, пункта и ссылкой на первоисточник. <b>Важно:</b> номера пунктов/страниц от ИИ нужно проверять по официальному тексту (docs.cntd.ru) — модель может ошибаться в нумерации. Рекомендуется модель Claude.</div>
@@ -999,6 +1031,36 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <div class="muted" id="paStat" style="margin-top:6px"></div>
 <div id="paResult" style="margin-top:10px"></div>
 <div class="noprint" id="paPdfBtn" style="display:none;margin-top:10px"><button class="btn green" onclick="exportProjectAnalysisPdf()">📄 Сохранить отчёт в PDF</button></div>
+</div>
+</section>
+
+<!-- ===== ПРЕДПРОСМОТР ЧЕРТЕЖЕЙ ===== -->
+<section id="tab-preview" class="tab">
+<div class="card">
+<h2>Предпросмотр чертежей</h2>
+<div class="banner info">Список листов слева, крупный просмотр справа. Включите «Выделение области» и обведите участок мышью — затем распознайте текст (OCR), отправьте на ИИ-анализ или сохраните как фрагмент-фото.</div>
+<div class="row" style="gap:14px;align-items:flex-start;flex-wrap:nowrap">
+<div style="flex:0 0 240px;max-width:240px">
+<label style="font-size:12px">Том</label>
+<select id="pvPdfSel" onchange="pvRenderList()"></select>
+<div id="pvList" style="margin-top:8px;max-height:560px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:4px"></div>
+</div>
+<div style="flex:1;min-width:0">
+<div class="row noprint" style="gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+<button class="btn sm gray" onclick="pvZoom(-0.2)">➖</button><span id="pvZoomT" style="font-size:12px">100%</span><button class="btn sm gray" onclick="pvZoom(0.2)">➕</button>
+<button class="btn sm green" id="pvAreaBtn" onclick="pvAreaToggle()">🔲 Выделение области</button>
+<span class="muted" id="pvHint" style="font-size:12px"></span>
+</div>
+<div id="pvActions" class="noprint" style="display:none;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+<button class="btn sm" style="background:#229ED9" onclick="pvAreaOcr()">🔎 OCR области</button>
+<button class="btn sm" style="background:#7C3AED" onclick="pvAreaAi()">🤖 ИИ-анализ области</button>
+<button class="btn sm" style="background:#1F8A4C" onclick="pvAreaSave()">📷 Сохранить как фото</button>
+</div>
+<div id="pvResult" style="margin-bottom:8px"></div>
+<div id="pvStatus" class="muted" style="font-size:12px">Выберите лист слева.</div>
+<div style="overflow:auto;border:1px solid var(--line);border-radius:8px;max-height:640px;position:relative;background:#f8fafc"><canvas id="pvCanvas" style="display:block"></canvas></div>
+</div>
+</div>
 </div>
 </section>
 
@@ -1397,6 +1459,7 @@ function switchTab(id){
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   document.querySelector('.navbtn[data-tab="'+id+'"]').classList.add('active');
+  if(id==='tab-preview')pvFillPdfSel();
   if(id==='tab-brigades')renderBrigades();
   if(id==='tab-dashboard')renderDashboard();
   if(id==='tab-timesheet'){renderTsGrid();renderTsMassList();}
@@ -2011,7 +2074,9 @@ function runSearch(){
   const raw=document.getElementById('sQuery').value.trim();
   if(!raw)return;
   const norm=s=>(s||'').toLowerCase().replace(/ё/g,'е').replace(/\s*-\s*/g,'-').replace(/\s+/g,' ');
-  const glue=s=>(s||'').toLowerCase().replace(/ё/g,'е').replace(/[\s\-—.]/g,'');
+  // латиница, визуально совпадающая с кириллицей → кириллица (частая проблема в чертежах САПР: PM-7 вместо РМ-7)
+  const unify=s=>(s||'').replace(/[ABEKMHOPCTXaeopcyx]/g,ch=>({'A':'А','B':'В','E':'Е','K':'К','M':'М','H':'Н','O':'О','P':'Р','C':'С','T':'Т','X':'Х','a':'а','e':'е','o':'о','p':'р','c':'с','y':'у','x':'х'}[ch]||ch));
+  const glue=s=>unify(s||'').toLowerCase().replace(/ё/g,'е').replace(/[\s\-—.]/g,'').replace(/(\D)0+(\d)/g,'$1$2');
   const q=norm(raw);const qg=glue(raw);
   const words=q.split(' ').filter(w=>w.length>=2);
   // оценка релевантности куска текста к запросу (чем больше — тем релевантнее; 0 = не подходит)
@@ -2326,6 +2391,92 @@ async function handlePdf(ev){
   ozhrFillSelects(); // и список марок в форме ОЖР
   renderPdfList();
 }
+/* ====== ИНТЕРАКТИВНОЕ СОДЕРЖАНИЕ ====== */
+function diagIndex(){
+  const el=document.getElementById('diagResult');if(!el)return;
+  if(!PDFS.length){el.innerHTML='<p class="muted">Сначала загрузите PDF.</p>';return;}
+  const unify=s=>(s||'').replace(/[ABEKMHOPCTX]/g,ch=>({'A':'А','B':'В','E':'Е','K':'К','M':'М','H':'Н','O':'О','P':'Р','C':'С','T':'Т','X':'Х'}[ch]||ch));
+  let h='';
+  PDFS.forEach(p=>{
+    let noText=0,withText=0,ocrPages=0;
+    const sample=[];
+    p.pages.forEach(pg=>{
+      const raw=(pg.text||'').replace(/\[OCR[^\]]*\][\s\S]*/,'').trim();
+      if(pg.ocr)ocrPages++;
+      if(raw.length<10){noText++;}else{withText++;}
+    });
+    h+='<div style="border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px">'+
+      '<b>📄 '+esc(p.name)+'</b> — листов '+p.num+'<br>'+
+      '<span style="color:#166534">✓ с текстом: '+withText+'</span> · '+
+      '<span style="color:#991b1b">✗ без текста (нужен OCR): '+noText+'</span>'+
+      (ocrPages?(' · <span style="color:#7c3aed">распознано OCR: '+ocrPages+'</span>'):'')+
+      '<div style="margin-top:6px"><label class="muted" style="font-size:12px">Проверить конкретный лист:</label> '+
+      '<input type="number" min="1" max="'+p.num+'" placeholder="№ листа" style="width:90px;display:inline-block" onkeydown="if(event.key===\'Enter\')diagPage(\''+p.name.replace(/'/g,'')+'\',this.value)"> '+
+      '<button class="btn sm gray" onclick="diagPage(\''+p.name.replace(/'/g,'')+'\',this.previousElementSibling.value)">показать текст листа</button></div>'+
+      '<div class="diagPageOut" style="margin-top:6px"></div></div>';
+  });
+  el.innerHTML=h;
+}
+function diagPage(pdfName,n){
+  n=parseInt(n);if(!n)return;
+  const p=PDFS.find(x=>x.name===pdfName);if(!p)return;
+  const pg=p.pages.find(x=>x.n===n);
+  const out=event.target.closest('div').parentElement.querySelector('.diagPageOut');
+  if(!pg){out.innerHTML='<span class="muted">Лист не найден</span>';return;}
+  const raw=(pg.text||'').trim();
+  if(raw.length<10){
+    out.innerHTML='<div class="banner warn" style="font-size:12px">⚠ На листе '+n+' <b>нет текстового слоя</b> ('+raw.length+' симв.). Это «картинка»/скан — поиск и индексация его не видят. Решение: откройте лист и нажмите OCR, либо «Распознать ВСЕ документы».</div>';
+  }else{
+    const unify=s=>(s||'').replace(/[ABEKMHOPCTX]/g,ch=>({'A':'А','B':'В','E':'Е','K':'К','M':'М','H':'Н','O':'О','P':'Р','C':'С','T':'Т','X':'Х'}[ch]||ch));
+    const u=unify(raw);
+    out.innerHTML='<div class="banner ok" style="font-size:12px"><b>Лист '+n+': есть текст ('+raw.length+' симв.)</b>'+(pg.ocr?' [распознан OCR]':'')+'<br>Первые 600 символов (после нормализации латиницы):</div>'+
+      '<div style="background:#0f172a;color:#cbd5e1;font-family:monospace;font-size:11px;padding:8px;border-radius:6px;max-height:200px;overflow-y:auto;white-space:pre-wrap;margin-top:4px">'+esc(u.slice(0,600))+'</div>';
+  }
+}
+function buildToc(){
+  const el=document.getElementById('tocList');if(!el)return;
+  if(!PDFS.length){el.innerHTML='<p class="muted">Сначала загрузите PDF.</p>';return;}
+  let items=[];
+  PDFS.forEach(p=>{
+    // ищем листы, похожие на содержание/ведомость
+    p.pages.forEach(pg=>{
+      const t=pg.text||'';
+      if(!/содержание|ведомость\s+(чертежей|комплекта)|состав\s+проекта|перечень\s+листов/i.test(t.slice(0,500)))return;
+      // строки вида: "Наименование .... 17" или "лист 17" / "л.17" / "стр.17"
+      const lines=t.split(/[\n\r]+|(?<=\d)\s{2,}(?=[А-ЯA-Z])/);
+      lines.forEach(line=>{
+        line=line.trim();if(line.length<6||line.length>200)return;
+        // номер листа: последнее число в строке, либо "лист N"
+        let m=line.match(/(?:лист|л\.|стр\.?|page)\s*(\d{1,3})/i)||line.match(/(\d{1,3})\s*$/);
+        if(!m)return;
+        const n=parseInt(m[1]);if(!n||n>p.num)return;
+        const name=line.replace(/(?:лист|л\.|стр\.?)\s*\d{1,3}/i,'').replace(/\d{1,3}\s*$/,'').replace(/\.{2,}/g,'').trim();
+        if(name.length<3)return;
+        items.push({pdf:p.name,n,name});
+      });
+    });
+  });
+  // дедупликация
+  const seen={};items=items.filter(it=>{const k=it.pdf+'|'+it.n+'|'+it.name;if(seen[k])return false;seen[k]=1;return true;});
+  if(!items.length){el.innerHTML='<div class="banner warn" style="font-size:12px">Содержание не распознано. Возможные причины: лист содержания не загружен, или это «картинка» без текста (распознайте OCR). Можно также пользоваться поиском и переходом по результатам.</div>';return;}
+  // группируем по PDF
+  const byPdf={};items.forEach(it=>{(byPdf[it.pdf]=byPdf[it.pdf]||[]).push(it);});
+  let h='';
+  Object.keys(byPdf).forEach(pdf=>{
+    h+='<div style="margin-bottom:10px"><b style="font-size:13px">📄 '+esc(pdf)+'</b><div style="margin-top:4px">';
+    byPdf[pdf].sort((a,b)=>a.n-b.n).forEach(it=>{
+      h+='<div onclick="tocGo(\''+pdf.replace(/'/g,"")+'\','+it.n+')" style="cursor:pointer;padding:5px 8px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;gap:10px" onmouseover="this.style.background=\'#e0f2fe\'" onmouseout="this.style.background=\'\'"><span>'+esc(it.name)+'</span><span style="color:#229ED9;font-weight:600;white-space:nowrap">→ лист '+it.n+'</span></div>';
+    });
+    h+='</div></div>';
+  });
+  el.innerHTML='<div class="banner ok" style="font-size:12px;margin-bottom:8px">Найдено позиций: '+items.length+'. Нажмите строку для перехода.</div>'+h;
+}
+function tocGo(pdf,sheet){
+  const offEl=document.getElementById('tocOffset');const off=offEl?(parseInt(offEl.value)||0):0;
+  const doc=PDFS.find(p=>p.name===pdf);if(!doc){alert('PDF не загружен');return;}
+  let page=sheet+off;if(page<1)page=1;if(page>doc.num)page=doc.num;
+  viewPdf(pdf,page);
+}
 function renderPdfList(){
   const el=document.getElementById('pdfList');
   if(!PDFS.length){el.innerHTML='';return;}
@@ -2335,6 +2486,8 @@ function renderPdfList(){
   if(typeof rbFillPdfSel==='function')rbFillPdfSel();
   if(typeof plFillPdfSel==='function')plFillPdfSel();
   if(typeof ocrFillPdfSel==='function')ocrFillPdfSel();
+  if(typeof buildToc==='function')buildToc();
+  if(typeof pvFillPdfSel==='function')pvFillPdfSel();
 }
 /* ====== ИЗВЛЕЧЕНИЕ МАРОК ИЗ PDF (дополнение списка) ====== */
 function classifyMark(m){
@@ -2364,8 +2517,11 @@ function extractMarks(doc){
     /∅\d{1,2}(?:\s*[АA][2-5]00[СC]?)?/gi               // диаметры ∅16
   ];
   const found=new Set();
+  // латиница, визуально совпадающая с кириллицей → кириллица (PM-7 → РМ-7)
+  const unify=s=>(s||'').replace(/[ABEKMHOPCTX]/g,ch=>({'A':'А','B':'В','E':'Е','K':'К','M':'М','H':'Н','O':'О','P':'Р','C':'С','T':'Т','X':'Х'}[ch]||ch));
   doc.pages.forEach(pg=>{
-    rx.forEach(re=>{const ms=pg.text.match(re);if(ms)ms.forEach(x=>{
+    const txt=unify(pg.text||'');
+    rx.forEach(re=>{const ms=txt.match(re);if(ms)ms.forEach(x=>{
       const clean=x.toUpperCase().replace(/\s+/g,' ').trim();
       if(clean.length>=2)found.add(clean+'|'+pg.n);
     });});
@@ -2427,6 +2583,36 @@ function updZoom(){document.getElementById('zoomT').textContent=Math.round(curZo
 /* ====== ИИ-ПРОЕКТИРОВЩИК ====== */
 function qd(q){document.getElementById('dInput').value=q;askDesigner();}
 function dMsg(who,txt){const c=document.getElementById('dChat');const d=document.createElement('div');d.className='bub '+(who==='u'?'u':'b');d.innerHTML=txt.replace(/\n/g,'<br>');c.appendChild(d);c.scrollTop=c.scrollHeight;}
+/* ====== ВЛОЖЕНИЯ В SCAD AI ====== */
+let DATTACH={text:'',textName:'',img:'',imgName:''};
+function dAttachInfo(){const el=document.getElementById('dAttachInfo');if(!el)return;let s=[];if(DATTACH.textName)s.push('📄 '+DATTACH.textName+' ('+DATTACH.text.length+' симв.)');if(DATTACH.imgName)s.push('🖼 '+DATTACH.imgName);el.innerHTML=s.length?('Прикреплено: '+s.join(', ')+' <span onclick="dClearAttach()" style="color:var(--red);cursor:pointer">убрать</span>'):'';}
+function dClearAttach(){DATTACH={text:'',textName:'',img:'',imgName:''};document.getElementById('dFile').value='';document.getElementById('dImg').value='';dAttachInfo();}
+async function dLoadFile(ev){
+  const f=ev.target.files[0];if(!f)return;
+  const info=document.getElementById('dAttachInfo');info.textContent='⏳ читаю файл…';
+  try{
+    if(f.type==='application/pdf'){
+      const buf=await f.arrayBuffer();
+      const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+      let txt='';for(let i=1;i<=pdf.numPages&&txt.length<16000;i++){const pg=await pdf.getPage(i);const tc=await pg.getTextContent();txt+='\n[л.'+i+'] '+tc.items.map(x=>x.str).join(' ');}
+      DATTACH.text=txt.trim();DATTACH.textName=f.name;
+      if(!DATTACH.text)info.textContent='⚠ В PDF нет текстового слоя (картинка). Текст не извлечён.';
+    }else{
+      DATTACH.text=(await f.text()).slice(0,16000);DATTACH.textName=f.name;
+    }
+  }catch(e){info.textContent='Ошибка чтения: '+e.message;return;}
+  dAttachInfo();
+}
+function dLoadImg(ev){
+  const f=ev.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{const max=1280;let w=img.width,h=img.height;if(w>max||h>max){if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;}}const cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);DATTACH.img=cv.toDataURL('image/jpeg',0.75);DATTACH.imgName=f.name;dAttachInfo();};
+    img.src=e.target.result;
+  };
+  r.readAsDataURL(f);
+}
 async function askDesigner(){
   const q=document.getElementById('dInput').value.trim();if(!q)return;
   dMsg('u',esc(q));document.getElementById('dInput').value='';
@@ -2450,8 +2636,15 @@ async function askDesigner(){
       }else{
         prompt='Ты '+role+' по объекту «Север» (082.024). Отвечай ТОЛЬКО по данным проекта ниже, ссылайся на листы, не выдумывай. Если данных нет — скажи об этом.\nПРОЕКТ:\n'+ctx+(pdfCtx?('\nТЕКСТ ЧЕРТЕЖЕЙ:'+pdfCtx):'')+'\nВОПРОС: '+q;
       }
-      const res=await aiFetch({model:S.ai.model,messages:[{role:'user',content:prompt}],temperature:0.1});
-      if(!res.ok)throw new Error(res.status);
+      // доп. текстовый файл — в контекст
+      if(DATTACH.text)prompt+='\n\nДОП. МАТЕРИАЛ ('+DATTACH.textName+'):\n'+DATTACH.text;
+      // если прикреплено изображение — отправляем как vision
+      let content;
+      if(DATTACH.img){
+        content=[{type:'text',text:prompt+'\n\nК сообщению приложено изображение ('+DATTACH.imgName+') — опиши его и учти в ответе.'},{type:'image_url',image_url:{url:DATTACH.img}}];
+      }else content=prompt;
+      const res=await aiFetch({model:S.ai.model,messages:[{role:'user',content}],temperature:0.1});
+      if(!res.ok)throw new Error(res.status+(res.status===400&&DATTACH.img?' — модель не поддерживает изображения (vision). Выберите gpt-4o или Claude.':''));
       const data=await res.json();
       document.getElementById('dChat').lastChild.remove();
       let answer=(data.choices&&data.choices[0].message.content)||'Пустой ответ';
@@ -3729,6 +3922,113 @@ function exportProjectAnalysisPdf(){
   body+='<div style="margin-top:16px;padding:10px;border:1px solid #c00;border-radius:6px;font-size:11px;color:#900">Внимание: отчёт сформирован системами ИИ как вспомогательный инструмент проверки и не заменяет экспертизу проектной документации. Все замечания и ссылки на нормативные документы подлежат проверке ответственными специалистами по официальным текстам (docs.cntd.ru и др.). Расхождения между моделями указывают на места, требующие особого внимания инженера.</div>'+reportSignatures();
   w.document.write('<html><head><title>Отчёт анализа проекта</title></head><body style="font-family:Arial;padding:28px;font-size:13px;line-height:1.6">'+body+'</body></html>');
   w.document.close();w.print();
+}
+/* ====== ПРЕДПРОСМОТР ЧЕРТЕЖЕЙ ====== */
+let PV={pdfName:'',page:1,zoom:1,pdf:null,areaOn:false,rect:null,box:null,drawing:false,sx:0,sy:0};
+function pvFillPdfSel(){
+  const s=document.getElementById('pvPdfSel');if(!s)return;
+  s.innerHTML=PDFS.length?PDFS.map(p=>'<option value="'+esc(p.name)+'">'+esc(p.name)+' ('+p.num+' л.)</option>').join(''):'<option value="">— нет загруженных PDF —</option>';
+  if(PDFS.length){PV.pdfName=PDFS[0].name;pvRenderList();}
+}
+function pvRenderList(){
+  const sel=document.getElementById('pvPdfSel');PV.pdfName=sel.value;
+  const doc=PDFS.find(p=>p.name===PV.pdfName);const el=document.getElementById('pvList');
+  if(!doc){el.innerHTML='<span class="muted" style="font-size:12px">нет листов</span>';return;}
+  let h='';
+  for(let i=1;i<=doc.num;i++){
+    const pg=doc.pages.find(x=>x.n===i);
+    const hasText=pg&&(pg.text||'').replace(/\[OCR[^\]]*\][\s\S]*/,'').trim().length>=10;
+    const ocr=pg&&pg.ocr;
+    const mark=hasText?'<span style="color:#16a34a">✓</span>':(ocr?'<span style="color:#7c3aed">OCR</span>':'<span style="color:#dc2626">✗</span>');
+    h+='<div onclick="pvOpen('+i+')" id="pvLi'+i+'" style="cursor:pointer;padding:5px 8px;border-radius:6px;font-size:13px;display:flex;justify-content:space-between'+(i===PV.page?';background:#dbeafe;font-weight:600':'')+'" onmouseover="if('+i+'!==PV.page)this.style.background=\'#f1f5f9\'" onmouseout="if('+i+'!==PV.page)this.style.background=\'\'">Лист '+i+' '+mark+'</div>';
+  }
+  el.innerHTML=h;
+  pvOpen(PV.page<=doc.num?PV.page:1);
+}
+async function pvOpen(n){
+  const doc=PDFS.find(p=>p.name===PV.pdfName);if(!doc)return;
+  PV.page=n;
+  document.querySelectorAll('[id^=pvLi]').forEach(d=>{d.style.background='';d.style.fontWeight='';});
+  const li=document.getElementById('pvLi'+n);if(li){li.style.background='#dbeafe';li.style.fontWeight='600';}
+  document.getElementById('pvStatus').textContent='Лист '+n+'/'+doc.num+' — рендеринг…';
+  pvClearArea();
+  try{
+    if(PV._pdfName!==PV.pdfName||!PV.pdf){PV.pdf=await pdfjsLib.getDocument({data:doc.buffer.slice(0)}).promise;PV._pdfName=PV.pdfName;}
+    await pvRender();
+    document.getElementById('pvStatus').textContent='Лист '+n+'/'+doc.num;
+  }catch(e){document.getElementById('pvStatus').textContent='Ошибка: '+e.message;}
+}
+async function pvRender(){
+  const page=await PV.pdf.getPage(PV.page);
+  const vp=page.getViewport({scale:PV.zoom*1.3});
+  const cv=document.getElementById('pvCanvas');cv.width=vp.width;cv.height=vp.height;
+  await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+  document.getElementById('pvZoomT').textContent=Math.round(PV.zoom*100)+'%';
+}
+function pvZoom(d){PV.zoom=Math.max(0.4,Math.min(3,PV.zoom+d));pvRender();pvClearArea();}
+function pvAreaToggle(){
+  const cv=document.getElementById('pvCanvas');PV.areaOn=!PV.areaOn;
+  const btn=document.getElementById('pvAreaBtn'),hint=document.getElementById('pvHint');
+  if(PV.areaOn){btn.textContent='✖ отменить';hint.textContent='обведите участок мышью';cv.style.cursor='crosshair';cv.onmousedown=pvDown;cv.onmousemove=pvMove;cv.onmouseup=pvUp;}
+  else{btn.textContent='🔲 Выделение области';hint.textContent='';cv.style.cursor='default';cv.onmousedown=cv.onmousemove=cv.onmouseup=null;pvClearArea();}
+}
+function pvClearArea(){if(PV.box){PV.box.remove();PV.box=null;}PV.rect=null;document.getElementById('pvActions').style.display='none';}
+function pvDown(e){
+  const cv=document.getElementById('pvCanvas');const r=cv.getBoundingClientRect();
+  PV.sx=e.clientX-r.left;PV.sy=e.clientY-r.top;PV.drawing=true;
+  if(!PV.box){PV.box=document.createElement('div');PV.box.style.cssText='position:absolute;border:2px dashed #229ED9;background:rgba(34,158,217,.12);pointer-events:none;z-index:5';cv.parentElement.appendChild(PV.box);}
+  PV.box.style.left=(cv.offsetLeft+PV.sx)+'px';PV.box.style.top=(cv.offsetTop+PV.sy)+'px';PV.box.style.width='0px';PV.box.style.height='0px';
+}
+function pvMove(e){
+  if(!PV.drawing)return;const cv=document.getElementById('pvCanvas');const r=cv.getBoundingClientRect();
+  const x=e.clientX-r.left,y=e.clientY-r.top;
+  const l=Math.min(x,PV.sx),t=Math.min(y,PV.sy),w=Math.abs(x-PV.sx),h=Math.abs(y-PV.sy);
+  PV.box.style.left=(cv.offsetLeft+l)+'px';PV.box.style.top=(cv.offsetTop+t)+'px';PV.box.style.width=w+'px';PV.box.style.height=h+'px';
+  PV.rect={l,t,w,h};
+}
+function pvUp(){PV.drawing=false;if(PV.rect&&PV.rect.w>8&&PV.rect.h>8)document.getElementById('pvActions').style.display='flex';}
+function pvCrop(){
+  if(!PV.rect)return null;const cv=document.getElementById('pvCanvas');
+  const scaleX=cv.width/cv.clientWidth,scaleY=cv.height/cv.clientHeight;
+  const sx=PV.rect.l*scaleX,sy=PV.rect.t*scaleY,sw=PV.rect.w*scaleX,sh=PV.rect.h*scaleY;
+  const crop=document.createElement('canvas');crop.width=sw;crop.height=sh;
+  crop.getContext('2d').drawImage(cv,sx,sy,sw,sh,0,0,sw,sh);
+  return crop;
+}
+async function pvAreaOcr(){
+  const crop=pvCrop();if(!crop){alert('Сначала выделите область');return;}
+  if(typeof Tesseract==='undefined'){alert('OCR-библиотека не загружена');return;}
+  const res=document.getElementById('pvResult');res.innerHTML='<span class="muted">⏳ распознаю область…</span>';
+  try{
+    if(typeof ocrPreprocess==='function')ocrPreprocess(crop);
+    const data=(typeof ocrRecognize==='function')?await ocrRecognize(crop):(await Tesseract.recognize(crop,'rus+eng')).data;
+    let text=(data.text||'').trim();if(typeof ocrNormalize==='function')text=ocrNormalize(text);
+    // добавляем в индекс листа
+    const doc=PDFS.find(p=>p.name===PV.pdfName);if(doc){const pg=doc.pages.find(x=>x.n===PV.page);if(pg){pg.text=(pg.text||'')+'\n[OCR-обл]\n'+text;pg.ocr=true;const k=doc.name+'|'+PV.page;const ex=S.ocr.find(o=>o.key===k);if(ex)ex.text=(ex.text||'')+'\n'+text;else S.ocr.push({key:k,pdf:doc.name,n:PV.page,text,date:Date.now()});persist();}}
+    res.innerHTML='<div class="banner ok" style="font-size:13px"><b>Распознано:</b><div style="white-space:pre-wrap;margin-top:4px">'+(esc(text)||'<i>текст не распознан</i>')+'</div><div class="muted" style="font-size:11px;margin-top:4px">Добавлено в поиск по листу '+PV.page+'.</div></div>';
+    pvRenderList();
+  }catch(e){res.innerHTML='<span class="muted">Ошибка OCR: '+esc(e.message)+'</span>';}
+}
+async function pvAreaAi(){
+  const crop=pvCrop();if(!crop){alert('Сначала выделите область');return;}
+  if(!aiReady()){alert('Для ИИ-анализа включите ZVENO (Настройки). Нужна vision-модель (gpt-4o/Claude).');return;}
+  const res=document.getElementById('pvResult');res.innerHTML='<span class="muted">⏳ ИИ анализирует область…</span>';
+  try{
+    const img=crop.toDataURL('image/jpeg',0.85);
+    const prompt='Это фрагмент строительного чертежа (объект «Север», монолит, бассейн). Опиши, что на нём: марки, размеры, армирование, узлы, примечания. Только видимое, без догадок.';
+    const body={model:S.ai.model,messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:img}}]}],temperature:0.2};
+    const r=await aiFetch(body);
+    if(!r.ok)throw new Error('HTTP '+r.status+(r.status===400?' — модель не поддерживает изображения (vision). Выберите gpt-4o или Claude.':''));
+    const d=await r.json();const out=(d.choices&&d.choices[0]&&d.choices[0].message.content)||'пусто';
+    res.innerHTML='<div class="banner ok" style="font-size:13px"><b>🤖 ИИ об области:</b><div style="white-space:pre-wrap;margin-top:4px">'+esc(out)+'</div></div>';
+  }catch(e){res.innerHTML='<div class="banner warn" style="font-size:12px">ИИ-анализ недоступен: '+esc(e.message)+'</div>';}
+}
+function pvAreaSave(){
+  const crop=pvCrop();if(!crop){alert('Сначала выделите область');return;}
+  const img=crop.toDataURL('image/jpeg',0.85);
+  S.photos.unshift({id:Date.now()+Math.random(),date:new Date().toISOString().split('T')[0],zone:PV.pdfName+' л.'+PV.page,work:'фрагмент чертежа',note:'вырезано из предпросмотра',img,ai:'',ozhrId:'',aosrId:''});
+  persist();if(typeof renderPhotos==='function')renderPhotos();
+  document.getElementById('pvResult').innerHTML='<div class="banner ok" style="font-size:12px">📷 Фрагмент сохранён в Фотофиксацию (захватка: '+esc(PV.pdfName)+' л.'+PV.page+').</div>';
 }
 /* ====== УТИЛИТЫ ====== */
 function renderAll(){renderOzhr();renderTs();renderWorkers();renderMemos();renderOrders();renderGpr();renderGantt();renderTmc();renderPlans();renderDashboard();renderAosr();renderStrength();renderChecklists();renderInstruct();renderPermits();renderPhotos();renderIncoming();}

@@ -1,0 +1,35 @@
+# Рабочая база данных объекта — НЕ хранить в репозитории
+pto_data_sever.json
+PTO_DATA_SEVER.txt
+PTO_DATA*.txt
+*_backup*.txt
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Резервные копии и экспорт Excel
+*.bak
+Шаблон_ОЖР*.xlsx
+ОЖР_*.xlsx
+Табель_*.xlsx
+ТМЦ_*.xlsx
+ГПР_*.xlsx
+Присутствие_*.xlsx
+Контроль_бетона_*.xlsx
+
+# Системные
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*~
+
+# Загруженные чертежи (большие)
+*.pdf
+
+# ВАЖНО: не коммитить секреты
+.env
+*.key
