@@ -982,7 +982,18 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <div class="banner warn"><b>Честно о возможностях:</b> ИИ анализирует текст загруженных PDF + базу проекта. Он может пропустить ошибки или принять верное за ошибку — это <b>помощник для проверки</b>, а не замена экспертизы. Все замечания проверяет инженер. Глубокий анализ — на модели Claude (настройки ИИ). Геометрию чертежа ИИ не «видит», работает по тексту.</div>
 <div class="row">
 <div class="col"><label>Что анализировать</label><select id="paScope"><option value="all">Весь загруженный проект (все PDF)</option><option value="marks">Только марки/армирование из базы</option></select></div>
-<div style="display:flex;align-items:flex-end"><button class="btn" style="background:#7C3AED" onclick="runProjectAnalysis()" id="paBtn">🔍 Глубокий анализ проекта</button></div>
+<div style="display:flex;align-items:flex-end"><button class="btn" style="background:#7C3AED" onclick="runProjectAnalysis()" id="paBtn">🔍 Анализ (несколько ИИ)</button></div>
+</div>
+<div style="margin-top:8px;padding:8px;background:#f5f3ff;border-radius:8px">
+<label style="font-weight:600;font-size:13px">Модели для анализа (отмеченные работают параллельно, затем сводка):</label>
+<div id="paModels" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px">
+<label style="font-size:13px"><input type="checkbox" class="paModel" value="anthropic/claude-sonnet-4-20250514" checked> Claude Sonnet 4</label>
+<label style="font-size:13px"><input type="checkbox" class="paModel" value="openai/gpt-4o" checked> GPT-4o</label>
+<label style="font-size:13px"><input type="checkbox" class="paModel" value="google/gemini-2.0-flash-exp" checked> Gemini 2.0</label>
+<label style="font-size:13px"><input type="checkbox" class="paModel" value="deepseek/deepseek-chat"> DeepSeek</label>
+<label style="font-size:13px"><input type="checkbox" class="paModel" value="qwen/qwen-2.5-72b-instruct"> Qwen 2.5 72B</label>
+</div>
+<div class="muted" style="font-size:11px;margin-top:4px">Каждая модель — отдельный платный запрос ZVENO. Если модель недоступна на вашем тарифе — она вернёт ошибку, остальные отработают. Сводку формирует Claude, сопоставляя ответы. Список моделей — на zveno.ai.</div>
 </div>
 <div class="progress" id="paProg" style="display:none;margin-top:8px"><div id="paBar"></div></div>
 <div class="muted" id="paStat" style="margin-top:6px"></div>
@@ -3651,50 +3662,72 @@ function brToGpr(id){
 /* ====== АНАЛИЗ ПРОЕКТА (ИИ) ====== */
 let PROJ_ANALYSIS='';
 async function runProjectAnalysis(){
-  if(!aiReady()){alert('Для анализа проекта включите ZVENO (Настройки ИИ). Рекомендуется модель Claude.');return;}
+  if(!aiReady()){alert('Для анализа включите ZVENO (Настройки ИИ).');return;}
+  const models=[...document.querySelectorAll('.paModel:checked')].map(c=>c.value);
+  if(!models.length){alert('Отметьте хотя бы одну модель');return;}
   const scope=document.getElementById('paScope').value;
   const btn=document.getElementById('paBtn'),prog=document.getElementById('paProg'),bar=document.getElementById('paBar'),stat=document.getElementById('paStat'),result=document.getElementById('paResult');
-  btn.disabled=true;prog.style.display='block';bar.style.width='15%';stat.textContent='Собираю данные проекта…';result.innerHTML='';
+  btn.disabled=true;prog.style.display='block';bar.style.width='8%';stat.textContent='Собираю данные проекта…';result.innerHTML='';
   document.getElementById('paPdfBtn').style.display='none';
   try{
     const marks=PDB.elements.map(e=>e.mark+': '+e.spec+' ['+e.sheet+']').join('\n');
-    let pdfCtx='';PDFS.forEach(p=>p.pages.forEach(pg=>{if(pg.text&&pg.text.trim().length>30&&pdfCtx.length<18000)pdfCtx+='\n['+p.name+' л.'+pg.n+']: '+pg.text.slice(0,1800);}));
+    let pdfCtx='';PDFS.forEach(p=>p.pages.forEach(pg=>{if(pg.text&&pg.text.trim().length>30&&pdfCtx.length<16000)pdfCtx+='\n['+p.name+' л.'+pg.n+']: '+pg.text.slice(0,1600);}));
     if(scope==='all'&&!pdfCtx){if(!confirm('Загруженных PDF с текстом нет — анализ пойдёт только по базе марок. Продолжить?')){btn.disabled=false;prog.style.display='none';return;}}
-    bar.style.width='35%';stat.textContent='ИИ выполняет глубокий анализ (модель: '+S.ai.model+')…';
-    const prompt='Ты — независимый эксперт-проектировщик и нормоконтролёр по объекту «Север» (082.024, монолитный железобетон, бассейн, Северодвинск). Проведи ГЛУБОКИЙ анализ проекта и составь отчёт.\n'+
-      'ЗАДАЧИ:\n'+
-      '1) Проверь полноту и непротиворечивость данных проекта (марки, классы бетона, арматура, защитные слои, гидроизоляция).\n'+
-      '2) Выяви возможные ОШИБКИ, нестыковки, пропуски, риски (например: несоответствие классов бетона условиям эксплуатации, вопросы по армированию, морозостойкости, водонепроницаемости для бассейна).\n'+
-      '3) Для каждого замечания укажи: что не так, где (марка/лист), чем грозит, ссылку на норматив (СП/СНиП/ГОСТ) с оговоркой о проверке пункта.\n'+
-      '4) Приоритет — данные проекта ниже. Нормативы привлекай там, где в проекте нет данных.\n'+
-      'ФОРМАТ: 1) Краткое резюме. 2) Перечень замечаний (нумерованный, по убыванию важности). 3) Что запросить у проектировщика. 4) Оговорка о границах анализа.\n'+
-      'Не выдумывай данные проекта. Если чего-то нет в данных — отметь как «требует уточнения», а не как факт.\n\n'+
-      'ДАННЫЕ ПРОЕКТА (марки/спецификации):\n'+marks+(pdfCtx?('\n\nТЕКСТ ЧЕРТЕЖЕЙ (фрагменты):'+pdfCtx):'');
-    const res=await aiFetch({model:S.ai.model,messages:[{role:'user',content:prompt}],temperature:0.2});
-    if(!res.ok)throw new Error('HTTP '+res.status+(res.status===400?' (модель недоступна?)':''));
-    bar.style.width='90%';
-    const data=await res.json();
-    const out=(data.choices&&data.choices[0]&&data.choices[0].message.content)||'';
-    if(!out)throw new Error('пустой ответ ИИ');
-    PROJ_ANALYSIS=out;
-    bar.style.width='100%';stat.textContent='✓ Анализ завершён (модель: '+S.ai.model+').';
-    result.innerHTML='<div class="banner ok" style="white-space:pre-wrap;line-height:1.6">'+esc(out)+'</div><div class="banner warn" style="margin-top:8px;font-size:12px">⚠ Это ИИ-анализ — помощник, не экспертиза. Все замечания и ссылки на нормативы проверяет инженер по официальным документам.</div>';
-    document.getElementById('paPdfBtn').style.display='block';
+    const prompt='Ты — независимый эксперт-проектировщик и нормоконтролёр по объекту «Север» (082.024, монолитный железобетон, бассейн, Северодвинск). Проведи ГЛУБОКИЙ анализ проекта.\n'+
+      'ЗАДАЧИ: 1) Проверь полноту и непротиворечивость (марки, классы бетона, арматура, защитные слои, гидроизоляция, морозостойкость/водонепроницаемость для бассейна). 2) Выяви возможные ОШИБКИ, нестыковки, пропуски, риски. 3) Для каждого замечания: что не так, где (марка/лист), чем грозит, ссылка на норматив (СП/СНиП/ГОСТ) с оговоркой о проверке пункта. 4) Приоритет — данные проекта; нормативы привлекай где в проекте нет данных.\n'+
+      'ФОРМАТ: Резюме; Замечания (по убыванию важности); Что запросить у проектировщика; Границы анализа. Не выдумывай — чего нет, помечай «требует уточнения».\n\n'+
+      'ДАННЫЕ ПРОЕКТА:\n'+marks+(pdfCtx?('\n\nТЕКСТ ЧЕРТЕЖЕЙ (фрагменты):'+pdfCtx):'');
+    // параллельный запрос ко всем выбранным моделям
+    stat.textContent='Анализ выполняют '+models.length+' модел(и) параллельно…';bar.style.width='25%';
+    const answers=await Promise.all(models.map(async m=>{
+      try{
+        const res=await aiFetch({model:m,messages:[{role:'user',content:prompt}],temperature:0.2});
+        if(!res.ok)return {model:m,ok:false,text:'⚠ Модель недоступна (HTTP '+res.status+'). Возможно, не входит в ваш тариф ZVENO.'};
+        const d=await res.json();const out=(d.choices&&d.choices[0]&&d.choices[0].message.content)||'';
+        return {model:m,ok:!!out,text:out||'пустой ответ'};
+      }catch(e){return {model:m,ok:false,text:'⚠ Ошибка: '+e.message};}
+    }));
+    bar.style.width='75%';
+    const okAnswers=answers.filter(a=>a.ok);
+    // сводка через Claude (или первую рабочую модель)
+    let summary='';
+    if(okAnswers.length>=2){
+      stat.textContent='Формирую сводку (консенсус / расхождения)…';
+      const arbModel=okAnswers.find(a=>a.model.indexOf('claude')>=0)?okAnswers.find(a=>a.model.indexOf('claude')>=0).model:okAnswers[0].model;
+      const sumPrompt='Ниже '+okAnswers.length+' независимых анализов одного строительного проекта от разных ИИ. Сведи их: 1) КОНСЕНСУС — в чём сходятся (это надёжные замечания). 2) РАСХОЖДЕНИЯ — где модели не согласны (требует внимания инженера). 3) Итоговый перечень замечаний по важности. Кратко, без воды.\n\n'+okAnswers.map((a,i)=>'=== Анализ '+(i+1)+' ('+a.model+') ===\n'+a.text).join('\n\n');
+      try{
+        const res=await aiFetch({model:arbModel,messages:[{role:'user',content:sumPrompt}],temperature:0.1});
+        if(res.ok){const d=await res.json();summary=(d.choices&&d.choices[0]&&d.choices[0].message.content)||'';}
+      }catch(e){}
+    }
+    bar.style.width='100%';
+    PROJ_ANALYSIS={answers,summary,date:new Date().toISOString(),models};
+    stat.textContent='✓ Анализ завершён: '+okAnswers.length+' из '+models.length+' моделей ответили.';
+    // вывод
+    let h='';
+    if(summary)h+='<div class="banner ok"><b>📋 СВОДКА (консенсус / расхождения):</b><div style="white-space:pre-wrap;line-height:1.6;margin-top:6px">'+esc(summary)+'</div></div>';
+    h+='<h3 style="margin-top:14px">Ответы моделей ('+okAnswers.length+'/'+models.length+')</h3>';
+    answers.forEach(a=>{h+='<details style="margin-bottom:8px;border:1px solid var(--line);border-radius:8px;padding:8px"><summary style="cursor:pointer;font-weight:600">'+(a.ok?'✓':'✗')+' '+esc(a.model)+'</summary><div style="white-space:pre-wrap;line-height:1.6;margin-top:8px;font-size:13px">'+esc(a.text)+'</div></details>';});
+    h+='<div class="banner warn" style="margin-top:8px;font-size:12px">⚠ ИИ-анализ — помощник, не экспертиза. Замечания и ссылки на нормативы проверяет инженер по официальным документам. Расхождения между моделями = повод проверить внимательнее.</div>';
+    result.innerHTML=h;
+    if(okAnswers.length)document.getElementById('paPdfBtn').style.display='block';
   }catch(e){
     stat.textContent='✗ Ошибка анализа: '+e.message;
-    result.innerHTML='<div class="banner err">Не удалось выполнить анализ: '+esc(e.message)+'. Проверьте настройки ИИ (ZVENO) и доступность модели.</div>';
+    result.innerHTML='<div class="banner err">Не удалось выполнить анализ: '+esc(e.message)+'.</div>';
   }finally{btn.disabled=false;setTimeout(()=>{prog.style.display='none';},600);}
 }
 function exportProjectAnalysisPdf(){
-  if(!PROJ_ANALYSIS){alert('Сначала выполните анализ');return;}
+  if(!PROJ_ANALYSIS||!PROJ_ANALYSIS.answers){alert('Сначала выполните анализ');return;}
   const w=window.open('','_blank');
   const esc2=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  w.document.write('<html><head><title>Отчёт анализа проекта</title></head><body style="font-family:Arial;padding:28px;font-size:13px;line-height:1.6">'+
-    reportHeader('ОТЧЁТ ПО АНАЛИЗУ ПРОЕКТА (ИИ) — объект 082.024')+
-    '<p style="color:#666;font-size:12px">Модель ИИ: '+esc2(S.ai.model)+'. Дата: '+fdate(new Date().toISOString().split('T')[0])+'</p>'+
-    '<div style="white-space:pre-wrap">'+esc2(PROJ_ANALYSIS)+'</div>'+
-    '<div style="margin-top:16px;padding:10px;border:1px solid #c00;border-radius:6px;font-size:11px;color:#900">Внимание: отчёт сформирован системой ИИ как вспомогательный инструмент проверки и не заменяет экспертизу проектной документации. Все замечания и ссылки на нормативные документы подлежат проверке ответственными специалистами по официальным текстам (docs.cntd.ru и др.).</div>'+
-    reportSignatures()+'</body></html>');
+  const PA=PROJ_ANALYSIS;
+  let body=reportHeader('ОТЧЁТ ПО АНАЛИЗУ ПРОЕКТА (мультимодельный ИИ) — объект 082.024')+
+    '<p style="color:#666;font-size:12px">Модели: '+esc2(PA.models.join(', '))+'. Дата: '+fdate(PA.date.split('T')[0])+'</p>';
+  if(PA.summary)body+='<h3>Сводка (консенсус / расхождения)</h3><div style="white-space:pre-wrap;border:1px solid #999;border-radius:6px;padding:10px;background:#f8f8f8">'+esc2(PA.summary)+'</div>';
+  body+='<h3 style="margin-top:16px">Анализы по моделям</h3>';
+  PA.answers.forEach((a,i)=>{body+='<div style="margin-bottom:14px;page-break-inside:avoid"><b>'+(i+1)+'. '+esc2(a.model)+' '+(a.ok?'':'(недоступна)')+'</b><div style="white-space:pre-wrap;font-size:12px;margin-top:4px">'+esc2(a.text)+'</div></div>';});
+  body+='<div style="margin-top:16px;padding:10px;border:1px solid #c00;border-radius:6px;font-size:11px;color:#900">Внимание: отчёт сформирован системами ИИ как вспомогательный инструмент проверки и не заменяет экспертизу проектной документации. Все замечания и ссылки на нормативные документы подлежат проверке ответственными специалистами по официальным текстам (docs.cntd.ru и др.). Расхождения между моделями указывают на места, требующие особого внимания инженера.</div>'+reportSignatures();
+  w.document.write('<html><head><title>Отчёт анализа проекта</title></head><body style="font-family:Arial;padding:28px;font-size:13px;line-height:1.6">'+body+'</body></html>');
   w.document.close();w.print();
 }
 /* ====== УТИЛИТЫ ====== */
