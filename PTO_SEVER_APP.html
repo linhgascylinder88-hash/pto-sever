@@ -641,24 +641,17 @@ canvas{max-width:100%;border:1px solid var(--line);border-radius:8px}
 <div id="pdfList" style="margin-top:8px"></div>
 <div class="noprint" style="margin-top:6px"><button class="btn gray sm" onclick="diagIndex()">🔬 Диагностика индексации (что распозналось по листам)</button></div>
 <div id="diagResult" style="margin-top:8px"></div>
-<div class="card" style="background:#fffbeb;border-color:#fde68a;margin-top:12px">
-<div class="row noprint" style="justify-content:space-between;align-items:center">
-<h3 style="margin:0">📑 Интерактивное содержание</h3>
-<button class="btn gray sm" onclick="buildToc()">обновить содержание</button>
-</div>
-<div class="banner info" style="font-size:12px;margin:6px 0">Распознаёт листы «Содержание/Ведомость чертежей» и делает строки кликабельными — переход на нужный лист. Номер берётся из содержания; если нумерация PDF смещена (титул/обложка), используйте поправку.</div>
-<div class="row noprint" style="align-items:flex-end;gap:8px">
-<div><label class="muted" style="font-size:12px">Поправка номера (PDF = лист + N)</label><input type="number" id="tocOffset" value="0" style="width:90px"></div>
-<span class="muted" style="font-size:11px">напр.: если «лист 1» в содержании = странице 3 PDF, поставьте 2</span>
-</div>
-<div id="tocList" style="margin-top:8px"></div>
-</div>
 <div class="card" style="background:#f0f7ff;border-color:#bfdbfe;margin-top:12px">
 <div class="row noprint" style="justify-content:space-between;align-items:center">
 <h3 style="margin:0">📑 Содержание проекта (интерактивное)</h3>
-<button class="btn sm" style="background:#229ED9" onclick="buildToc()">Сформировать из загруженных PDF</button>
+<div><button class="btn sm" style="background:#229ED9" onclick="buildToc()">Сформировать из загруженных PDF</button> <button class="btn sm" style="background:#7C3AED" onclick="aiAnalyzeToc()">🤖 Анализ содержания (Claude)</button></div>
 </div>
-<div class="muted" style="font-size:12px;margin:6px 0">Распознаёт строки содержания (наименование → лист) и делает их кликабельными. Нажмите строку — переход на лист. <b>Важно:</b> номер берётся из текста содержания; если нумерация PDF смещена (титул/обложка), перейдёте близко — поправьте стрелками в просмотрщике.</div>
+<div class="muted" style="font-size:12px;margin:6px 0">Распознаёт строки содержания (наименование → лист) и делает их кликабельными. Нажмите строку — переход на лист. <b>Важно:</b> номер берётся из текста содержания; если нумерация PDF смещена (титул/обложка), поправьте offset ниже.</div>
+<div class="row noprint" style="align-items:flex-end;gap:8px;margin-bottom:6px">
+<div><label class="muted" style="font-size:12px">Поправка номера (PDF = лист + N)</label><input type="number" id="tocOffset" value="0" style="width:90px"></div>
+<span class="muted" style="font-size:11px">если «лист 1» в содержании = странице 3 PDF — поставьте 2</span>
+</div>
+<div id="tocAiResult"></div>
 <div id="tocList"></div>
 </div>
 <div class="card" style="background:#f0f9f4;border-color:#bbf7d0;margin-top:12px">
@@ -2265,7 +2258,7 @@ async function ocrAreaUp(e){
     res.innerHTML='<div class="banner ok" style="margin:0"><b>Распознано в области:</b><div style="white-space:pre-wrap;font-size:13px;margin-top:4px">'+(esc(text)||'<i>текст не распознан — попробуйте крупнее или чётче</i>')+'</div><div class="muted" style="font-size:11px;margin-top:4px">Добавлено в поиск по этому листу.</div></div>';
   }catch(e){res.innerHTML='<span class="muted">Ошибка OCR области: '+esc(e.message)+'</span>';}
 }
-async function runOcrAll(){
+async function runOcrAll(auto){
   if(OCRALL.running)return;
   if(!PDFS.length){alert('Сначала загрузите PDF чертежей.');return;}
   if(typeof Tesseract==='undefined'){alert('Библиотека OCR не загрузилась. Нужен интернет (на Render — есть).');return;}
@@ -2278,7 +2271,7 @@ async function runOcrAll(){
   const prog=document.getElementById('ocrProg'),bar=document.getElementById('ocrBar'),stat=document.getElementById('ocrStat'),result=document.getElementById('ocrResult');
   const allBtn=document.getElementById('ocrAllBtn'),stopBox=document.getElementById('ocrAllStop');
   if(!tasks.length){alert('Нет листов, требующих OCR: у всех загруженных листов уже есть текст или они распознаны. Пакетный OCR не нужен.');return;}
-  if(!confirm('Будет распознано листов: '+tasks.length+'. Это может занять ~'+Math.ceil(tasks.length*25/60)+' мин. Продолжить?'))return;
+  if(!auto&&!confirm('Будет распознано листов: '+tasks.length+'. Это может занять ~'+Math.ceil(tasks.length*25/60)+' мин. Продолжить?'))return;
   OCRALL.running=true;OCRALL.stop=false;
   allBtn.disabled=true;document.getElementById('ocrBtn').disabled=true;stopBox.style.display='block';prog.style.display='block';result.innerHTML='';
   pdfLog&&pdfLog('▶ Пакетный OCR: '+tasks.length+' лист(ов)','head');
@@ -2488,6 +2481,7 @@ function renderPdfList(){
   if(typeof ocrFillPdfSel==='function')ocrFillPdfSel();
   if(typeof buildToc==='function')buildToc();
   if(typeof pvFillPdfSel==='function')pvFillPdfSel();
+  if(typeof autoOcrAfterLoad==='function')autoOcrAfterLoad();
 }
 /* ====== ИЗВЛЕЧЕНИЕ МАРОК ИЗ PDF (дополнение списка) ====== */
 function classifyMark(m){
@@ -4029,6 +4023,40 @@ function pvAreaSave(){
   S.photos.unshift({id:Date.now()+Math.random(),date:new Date().toISOString().split('T')[0],zone:PV.pdfName+' л.'+PV.page,work:'фрагмент чертежа',note:'вырезано из предпросмотра',img,ai:'',ozhrId:'',aosrId:''});
   persist();if(typeof renderPhotos==='function')renderPhotos();
   document.getElementById('pvResult').innerHTML='<div class="banner ok" style="font-size:12px">📷 Фрагмент сохранён в Фотофиксацию (захватка: '+esc(PV.pdfName)+' л.'+PV.page+').</div>';
+}
+/* ====== ИИ-АНАЛИЗ СОДЕРЖАНИЯ (Claude) ====== */
+async function aiAnalyzeToc(){
+  const res=document.getElementById('tocAiResult');if(!res)return;
+  if(!aiReady()){alert('Включите ZVENO (Настройки ИИ). Рекомендуется Claude.');return;}
+  if(!PDFS.length){alert('Сначала загрузите PDF');return;}
+  // собираем тексты листов содержания
+  let toc='';PDFS.forEach(p=>p.pages.forEach(pg=>{if(/содержание|ведомость\s+(чертежей|комплекта)|состав\s+проекта|перечень\s+листов/i.test((pg.text||'').slice(0,500)))toc+='\n['+p.name+' л.'+pg.n+']:\n'+(pg.text||'').slice(0,2500);}));
+  if(!toc){res.innerHTML='<div class="banner warn" style="font-size:12px">Листы содержания не найдены (или без текста — распознайте OCR).</div>';return;}
+  res.innerHTML='<span class="muted">⏳ Claude анализирует содержание…</span>';
+  // приоритет Claude для анализа
+  const model=S.ai.model.indexOf('claude')>=0?S.ai.model:'anthropic/claude-sonnet-4-20250514';
+  try{
+    const prompt='Ты эксперт ПТО по объекту «Север» (082.024, монолитный ж/б, бассейн). Ниже распознанное СОДЕРЖАНИЕ комплекта чертежей. Проанализируй структуру: 1) какие разделы/листы есть; 2) логична ли последовательность; 3) чего не хватает для монолитного ж/б бассейна (например: гидроизоляция, узлы, ведомости расхода стали, спецификации), что стоит запросить; 4) на какие листы обратить внимание в первую очередь. Кратко, по делу. Не выдумывай листы, которых нет в содержании.\n\nСОДЕРЖАНИЕ:\n'+toc;
+    const r=await aiFetch({model,messages:[{role:'user',content:prompt}],temperature:0.2});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();const out=(d.choices&&d.choices[0]&&d.choices[0].message.content)||'пусто';
+    res.innerHTML='<div class="banner ok" style="font-size:13px"><b>🤖 Claude об организации комплекта:</b><div style="white-space:pre-wrap;line-height:1.6;margin-top:6px">'+esc(out)+'</div><div class="muted" style="font-size:11px;margin-top:6px">Модель: '+esc(model)+'. ИИ-оценка — проверяйте по факту.</div></div>';
+  }catch(e){res.innerHTML='<div class="banner warn" style="font-size:12px">ИИ-анализ недоступен: '+esc(e.message)+'</div>';}
+}
+/* ====== АВТО-OCR НЕЧИТАЕМЫХ ЛИСТОВ ====== */
+function autoOcrAfterLoad(){
+  // находим листы без текстового слоя (кандидаты на «скрытые важные данные»)
+  let need=0;
+  PDFS.forEach(p=>p.pages.forEach(pg=>{
+    const raw=(pg.text||'').replace(/\[OCR[^\]]*\][\s\S]*/,'').trim();
+    if(raw.length<10&&!pg.ocr)need++;
+  }));
+  if(!need)return;
+  // уведомление с возможностью отмены (т.к. долго)
+  const bar=document.getElementById('pdfStat');
+  if(bar)bar.innerHTML='🔍 Обнаружено листов без текста: '+need+'. Запускаю авто-распознавание (OCR), чтобы важные данные не потерялись. <b>Это может занять время.</b> <button class="btn red sm" onclick="OCRALL.stop=true;this.textContent=\'останавливаю…\'">⛔ отменить</button>';
+  // запускаем пакетный OCR (он сам берёт листы без текста)
+  setTimeout(()=>{ if(typeof runOcrAll==='function')runOcrAll(true); },800);
 }
 /* ====== УТИЛИТЫ ====== */
 function renderAll(){renderOzhr();renderTs();renderWorkers();renderMemos();renderOrders();renderGpr();renderGantt();renderTmc();renderPlans();renderDashboard();renderAosr();renderStrength();renderChecklists();renderInstruct();renderPermits();renderPhotos();renderIncoming();}
